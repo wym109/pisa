@@ -278,9 +278,8 @@ class decoherence(Stage):
                  input_names=None,
                  output_names=None,
                  debug_mode=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
+                 calc_mode=None,
+                 apply_mode=None,
                 ):
 
         expected_params = ('detector_depth',
@@ -304,15 +303,12 @@ class decoherence(Stage):
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ('weights',
                             'sys_flux',
                            )
         # what are keys added or altered in the calculation used during apply
-        output_calc_keys = ('prob_e',
                             'prob_mu',
                            )
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ('weights',
                       )
 
         # init base class
@@ -322,21 +318,14 @@ class decoherence(Stage):
                                        input_names=input_names,
                                        output_names=output_names,
                                        debug_mode=debug_mode,
-                                       input_specs=input_specs,
-                                       calc_specs=calc_specs,
-                                       output_specs=output_specs,
-                                       input_apply_keys=input_apply_keys,
-                                       output_calc_keys=output_calc_keys,
-                                       output_apply_keys=output_apply_keys,
+                                       calc_mode=calc_mode,
+                                       apply_mode=apply_mode,
                                       )
 
         #Have not yet implemented matter effects
         if self.params.earth_model.value is not None:
             raise ValueError("Matter effects not yet implemented for decoherence, must set 'earth_model' to None")
 
-        assert self.input_mode is not None
-        assert self.calc_mode is not None
-        assert self.output_mode is not None
 
         self.layers = None
 
@@ -363,10 +352,10 @@ class decoherence(Stage):
             self.layers.setElecFrac(YeI, YeO, YeM)
 
         # set the correct data mode
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
         # --- calculate the layers ---
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             # speed up calculation by adding links
             # as layers don't care about flavour
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
@@ -376,18 +365,18 @@ class decoherence(Stage):
 
         for container in self.data:
             if self.params.earth_model.value is not None:
-                self.layers.calcLayers(container['true_coszen'].get('host'))
+                self.layers.calcLayers(container['true_coszen'])
                 container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
                 container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
             else:
-                self.layers.calcPathLength(container['true_coszen'].get('host'))
+                self.layers.calcPathLength(container['true_coszen'])
                 container['distances'] = self.layers.distance
 
         # don't forget to un-link everything again
         self.data.unlink_containers()
 
         # --- setup empty arrays ---
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
                                              'nue_nc', 'numu_nc', 'nutau_nc'])
             self.data.link_containers('nubar', ['nuebar_cc', 'numubar_cc', 'nutaubar_cc',
@@ -406,9 +395,9 @@ class decoherence(Stage):
     def compute_function(self):
 
         # set the correct data mode
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             # speed up calculation by adding links
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
                                              'nue_nc', 'numu_nc', 'nutau_nc'])
@@ -440,20 +429,20 @@ class decoherence(Stage):
 
         for container in self.data:
             # initial electrons (0)
-            fill_probs(container['probability'].get(WHERE),
+            fill_probs(container['probability'],
                        0, # electron
                        container['flav'],
-                       out=container['prob_e'].get(WHERE),
+                       out=container['prob_e'],
                       )
             # initial muons (1)
-            fill_probs(container['probability'].get(WHERE),
+            fill_probs(container['probability'],
                        1, # muon
                        container['flav'],
-                       out=container['prob_mu'].get(WHERE),
+                       out=container['prob_mu'],
                       )
 
-            container['prob_e'].mark_changed(WHERE)
-            container['prob_mu'].mark_changed(WHERE)
+            container.mark_changed('prob_e')
+            container.mark_changed('prob_mu')
 
 
 
@@ -462,21 +451,21 @@ class decoherence(Stage):
 
         # update the outputted weights
         for container in self.data:
-            apply_probs(container['sys_flux'].get(WHERE),
-                        container['prob_e'].get(WHERE),
-                        container['prob_mu'].get(WHERE),
-                        out=container['weights'].get(WHERE))
-            container['weights'].mark_changed(WHERE)
+            apply_probs(container['sys_flux'],
+                        container['prob_e'],
+                        container['prob_mu'],
+                        out=container['weights'])
+            container.mark_changed('weights')
 
 
     def calc_probs(self, nubar, e_array, len_array, out):
 
         #Get the probability values output array
-        prob_array = out.get(WHERE)
+        prob_array = out
 
         #Attach units
-        L = len_array.get(WHERE) * ureg["km"]
-        E = e_array.get(WHERE) * ureg["GeV"]
+        L = len_array * ureg["km"]
+        E = e_array * ureg["GeV"]
 
         #nue
         calc_decoherence_probs( decoh_params=self.decoh_params, flav="nue", energy=E, baseline=L, prob_e=prob_array[:,0,0], prob_mu=prob_array[:,0,1], prob_tau=prob_array[:,0,2], two_flavor=self.two_flavor )
@@ -490,7 +479,7 @@ class decoherence(Stage):
         np.copyto(dst=prob_array[:,2,2], src=prob_array[:,1,1])
 
         #Register that arrays have changed
-        out.mark_changed(WHERE)
+        out
 
 
 

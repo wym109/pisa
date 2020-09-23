@@ -412,9 +412,8 @@ class simple_param(Stage):
                  input_names=None,
                  output_names=None,
                  debug_mode=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
+                 calc_mode=None,
+                 apply_mode=None,
                 ):
 
         expected_params = ( 
@@ -433,7 +432,6 @@ class simple_param(Stage):
         output_names = ()
 
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = (
                             'reco_energy',
                             'reco_coszen',
                             'pid',
@@ -447,10 +445,8 @@ class simple_param(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         #TODO Suport other modes
@@ -463,7 +459,6 @@ class simple_param(Stage):
 
         #TODO Could add a number of discrete cases here that can be selected betweeen, e.g. ICU baseline (LoI?), DeepCore current best, etc...
 
-        self.data.data_specs = self.input_specs
 
         # Get params
         perfect_reco = self.params.perfect_reco.value
@@ -484,8 +479,8 @@ class simple_param(Stage):
 
             # Get stuff that is used multiples times
             particle_key = container.name
-            true_energy = container["true_energy"].get(WHERE)
-            true_coszen = container["true_coszen"].get(WHERE)
+            true_energy = container["true_energy"]
+            true_coszen = container["true_coszen"]
 
 
             #
@@ -509,7 +504,7 @@ class simple_param(Stage):
 
             # Write to the container
             np.copyto( src=reco_energy, dst=container["reco_energy"].get("host") )
-            container["reco_energy"].mark_changed()
+            container.mark_changed("reco_energy")
 
 
             #
@@ -534,7 +529,7 @@ class simple_param(Stage):
 
             # Write to the container
             np.copyto( src=reco_coszen, dst=container["reco_coszen"].get("host") )
-            container["reco_coszen"].mark_changed()
+            container.mark_changed("reco_coszen")
 
 
             #
@@ -561,7 +556,7 @@ class simple_param(Stage):
 
             # Write to the container
             np.copyto( src=pid, dst=container["pid"].get("host") )
-            container["pid"].mark_changed()
+            container.mark_changed("pid")
 
 
 

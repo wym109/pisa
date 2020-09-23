@@ -33,19 +33,16 @@ class weight(Stage):  # pylint: disable=invalid-name
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
         expected_params = ('livetime', 'weight_scale')
         input_names = ()
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ('weights',)
 
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ('weights',)
 
         # init base class
         super().__init__(
@@ -55,16 +52,11 @@ class weight(Stage):  # pylint: disable=invalid-name
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
         assert self.calc_mode is None
-        assert self.output_mode is not None
 
         # right now this stage has no calc mode, as it just applies scales
         # but it could if for example some smoothing will be performed!

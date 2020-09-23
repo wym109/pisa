@@ -73,9 +73,8 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
         output_names=None,
         debug_mode=None,
         error_method=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
         links=None,
     ):
         # pylint: disable=line-too-long
@@ -85,18 +84,11 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
 
         # -- Which keys are added or altered for the outputs during `apply` -- #
 
-        input_calc_keys = ()
         if propagate_uncertainty:
-            output_calc_keys = ("hs_scales", "hs_scales_uncertainty")
         else:
-            output_calc_keys = ("hs_scales",)
 
         if error_method == "sumw2":
-            output_apply_keys = ("weights", "errors")
-            input_apply_keys = output_apply_keys
         else:
-            output_apply_keys = ("weights",)
-            input_apply_keys = output_apply_keys
 
         # -- Load hypersurfaces -- #
 
@@ -112,7 +104,7 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
             self.inter_params = inter_params
             expected_params = hs_params+inter_params
         else:
-            hypersurfaces = hs.load_hypersurfaces(self.fit_results_file, calc_specs)
+            hypersurfaces = hs.load_hypersurfaces(self.fit_results_file, calc_mode)
             self.hypersurface_param_names = list(hypersurfaces.values())[0].param_names
             expected_params = self.hypersurface_param_names
 
@@ -125,20 +117,13 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
             output_names=output_names,
             debug_mode=debug_mode,
             error_method=error_method,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_calc_keys=input_calc_keys,
-            output_calc_keys=output_calc_keys,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         # -- Only allowed/implemented modes -- #
 
-        assert self.input_mode is not None
         assert self.calc_mode == "binned"
-        assert self.output_mode is not None
 
         self.links = ast.literal_eval(links)
         self.warning_issued = False # don't warn more than once about empty bins
@@ -148,10 +133,10 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
         """Load the fit results from the file and make some check compatibility"""
         # load hypersurfaces
         if self.interpolated:
-            self.hypersurfaces = hs.load_interpolated_hypersurfaces(self.fit_results_file, self.calc_specs)
+            self.hypersurfaces = hs.load_interpolated_hypersurfaces(self.fit_results_file, self.calc_mode)
         else:
-            self.hypersurfaces = hs.load_hypersurfaces(self.fit_results_file, self.calc_specs)
-        self.data.data_specs = self.calc_specs
+            self.hypersurfaces = hs.load_hypersurfaces(self.fit_results_file, self.calc_mode)
+        self.data.representation = self.calc_mode
 
         if self.links is not None:
             for key, val in self.links.items():
@@ -174,7 +159,7 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
     # pylint: disable=line-too-long, logging-not-lazy, deprecated-method
     def compute_function(self):
 
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
         # Link containers
         if self.links is not None:
@@ -214,11 +199,11 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
                 uncertainties[empty_bins_mask] = 0.
 
             # Add to container
-            np.copyto(src=scales, dst=container["hs_scales"].get('host'))
-            container["hs_scales"].mark_changed()
+            np.copyto(src=scales, dst=container["hs_scales"])
+            container.mark_changed("hs_scales")
             if self.propagate_uncertainty:
-                np.copyto(src=uncertainties, dst=container["hs_scales_uncertainty"].get('host'))
-                container["hs_scales_uncertainty"].mark_changed()
+                np.copyto(src=uncertainties, dst=container["hs_scales_uncertainty"])
+                container.mark_changed("hs_scales_uncertainty")
 
         # Unlink the containers again
         self.data.unlink_containers()
@@ -232,26 +217,26 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
 
                 # If computing uncertainties in events mode, warn that
                 # hs error propagation will be skipped
-                if self.data.data_specs=='events':
+                if self.data.representation=='events':
                     logging.trace('WARNING: running stage in events mode. Hypersurface error propagation will be IGNORED.')
                 
                 elif self.propagate_uncertainty:
-                    calc_uncertainty(container["weights"].get(WHERE),
-                                     container["hs_scales_uncertainty"].get(WHERE),
-                                     container["errors"].get(WHERE),
+                    calc_uncertainty(container["weights"],
+                                     container["hs_scales_uncertainty"],
+                                     container["errors"],
                                     )
-                    container['errors'].mark_changed()
+                    container.mark_changed('errors')
 
                 else:
                     vectorizer.imul(container["hs_scales"], out=container["errors"])
-                    container['errors'].mark_changed()
+                    container.mark_changed('errors')
 
             # Update weights according to hypersurfaces
-            propagate_hs_scales(container["weights"].get(WHERE),
-                                container["hs_scales"].get(WHERE),
-                                container["weights"].get(WHERE))
+            propagate_hs_scales(container["weights"],
+                                container["hs_scales"],
+                                container["weights"])
 
-            container['weights'].mark_changed()
+            container.mark_changed('weights')
 
 
 if FTYPE == np.float32:

@@ -116,9 +116,8 @@ class nusquids(Stage):
                  input_names=None,
                  output_names=None,
                  debug_mode=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
+                 calc_mode=None,
+                 apply_mode=None,
                  use_decoherence=False,
                  num_decoherence_gamma=1,
                  use_nsi=False,
@@ -167,15 +166,12 @@ class nusquids(Stage):
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ('weights',
                             'nu_flux',
                            )
         # what are keys added or altered in the calculation used during apply
-        output_calc_keys = ('prob_e',
                             'prob_mu',
                            )
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ('weights',
                       )
 
         # init base class
@@ -186,26 +182,19 @@ class nusquids(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_calc_keys=output_calc_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         assert self.num_neutrinos == 3, "Only 3-flavor oscillations implemented right now" # TODO Add interface to nuSQuIDS 3+N handling
         assert self.use_nsi == False, "NSI support not yet implemented" # TODO
         assert not (self.use_nsi and self.use_decoherence), "NSI and decoherence not suported together, must use one or the other"
 
-        assert self.input_mode is not None # TODO Need to test binned mode
-        assert self.calc_mode == 'binned', "Must use a grid-based calculation for nuSQuIDS"
-        assert self.output_mode is not None # TODO Need to test binned mode
+        assert self.data.is_map, "Must use a grid-based calculation for nuSQuIDS"
 
         # Define new specs here for the points we evaluate probabilties at in nuSQuIDS
-        # This is a bit different to a standard PISA stage since nuSQuIDS interally calcuates on a grid (which we set via calc_specs) 
+        # This is a bit different to a standard PISA stage since nuSQuIDS interally calcuates on a grid (which we set via calc_mode) 
         # and then returns interpolated values each time we evaluate
-        self.eval_specs = self.input_specs #TODO Should this be output_specs?
 
         assert self.params.earth_model.value is not None, "Vacuum oscillations not currently supported when using nuSQuIDS with PISA"
 
@@ -213,15 +202,15 @@ class nusquids(Stage):
     def setup_function(self):
 
         # set the correct data mode
-        self.data.data_specs = self.eval_specs
+        self.data.representation = self.eval_specs
 
         # check the calc binning
-        validate_calc_grid(self.calc_specs)
+        validate_calc_grid(self.calc_mode)
         #TODO Check grid encompasses all events... (maybe needs to be in `compute_function`)
 
         # pad the grid to make sure we can later on evaluate osc. probs.
         # *anywhere* in between of the outermost bin edges
-        self.en_calc_grid, self.cz_calc_grid = compute_binning_constants(self.calc_specs) #TODO Check what this actually does, and if I need it
+        self.en_calc_grid, self.cz_calc_grid = compute_binning_constants(self.calc_mode) #TODO Check what this actually does, and if I need it
 
         #TODO enforce all events within grid
 
@@ -258,7 +247,7 @@ class nusquids(Stage):
     def compute_function(self):
 
         # set the correct data mode
-        self.data.data_specs = self.eval_specs
+        self.data.representation = self.eval_specs
 
         # update osc params
         self.osc_params.theta12 = self.params.theta12.value.m_as('rad')
@@ -310,8 +299,8 @@ class nusquids(Stage):
         for container in self.data:
 
             # get the event energy and coszen values in nuSQuIDS units
-            en_nusq = container["true_energy"].get(WHERE) * NSQ_CONST.GeV # GeV -> eV
-            cz_nusq = container["true_coszen"].get(WHERE) # No conversion required
+            en_nusq = container["true_energy"] * NSQ_CONST.GeV # GeV -> eV
+            cz_nusq = container["true_coszen"] # No conversion required
 
             # define the points where osc. probs. are to be evaluated in nuSQuIDS
             # this is either the events themselves, or on a grid if using a spline
@@ -332,7 +321,7 @@ class nusquids(Stage):
             if self.use_spline :
                 prob_e_buff,prob_mu_buff = np.full_like(en_eval,np.NaN), np.full_like(cz_eval,np.NaN)
             else :
-                prob_e_buff,prob_mu_buff = container['prob_e'].get(WHERE), container['prob_mu'].get(WHERE)
+                prob_e_buff,prob_mu_buff = container['prob_e'], container['prob_mu']
 
             # Get the oscillation probs, writing them to the container
             osc_probs(  # pylint: disable=unused-variable
@@ -347,12 +336,12 @@ class nusquids(Stage):
             # If using splines, create the spline using the probabilitis computed at each grid point, and evaluate for each event
             if self.use_spline :
                 prob_e_spline = RectBivariateSpline( en_eval_ax, cz_eval_ax, prob_e_buff.reshape(en_eval_grid.shape) )
-                np.copyto( src=prob_e_spline.ev(en_nusq,cz_nusq), dst=container['prob_e'].get(WHERE) )
+                np.copyto( src=prob_e_spline.ev(en_nusq,cz_nusq), dst=container['prob_e'] )
                 prob_mu_spline = RectBivariateSpline( en_eval_ax, cz_eval_ax, prob_mu_buff.reshape(en_eval_grid.shape) )
-                np.copyto( src=prob_mu_spline.ev(en_nusq,cz_nusq), dst=container['prob_mu'].get(WHERE) )
+                np.copyto( src=prob_mu_spline.ev(en_nusq,cz_nusq), dst=container['prob_mu'] )
 
-            container['prob_e'].mark_changed(WHERE)
-            container['prob_mu'].mark_changed(WHERE)
+            container.mark_changed('prob_e')
+            container.mark_changed('prob_mu')
 
 
     @profile
@@ -360,8 +349,8 @@ class nusquids(Stage):
 
         # update the outputted weights
         for container in self.data:
-            apply_probs(container['nu_flux'].get(WHERE),
-                        container['prob_e'].get(WHERE),
-                        container['prob_mu'].get(WHERE),
-                        out=container['weights'].get(WHERE))
-            container['weights'].mark_changed(WHERE)
+            apply_probs(container['nu_flux'],
+                        container['prob_e'],
+                        container['prob_mu'],
+                        out=container['weights'])
+            container.mark_changed('weights')

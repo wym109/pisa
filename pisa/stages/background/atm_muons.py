@@ -52,9 +52,8 @@ class atm_muons(Stage):
                  input_names=None,
                  output_names=None,
                  debug_mode=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
+                 calc_mode=None,
+                 apply_mode=None,
                 ):
 
         expected_params = (
@@ -67,11 +66,9 @@ class atm_muons(Stage):
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_calc_keys = ('weights',
                           )
 
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ('weights',
                             )
 
         # input_names should specify the key that the muon data can be found under in the input file
@@ -87,20 +84,15 @@ class atm_muons(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
-        assert self.calc_mode is not None
-        assert self.output_mode is not None
 
 
     def setup_function(self):
 
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
         # Check there are muons in the data
         assert self.input_names[0] in self.data.names, "No `%s` events found in the input data, only found %s" % (self.input_names[0],self.data.names)
@@ -126,7 +118,7 @@ class atm_muons(Stage):
     @profile
     def apply_function(self):
 
-        #self.data.data_specs = self.calc_specs
+        #self.data.representation = self.calc_mode
 
         #TODO vectorize this using numba (see e.g. prob3.py or genie_sys.py), which will also give GPU support
 
@@ -142,9 +134,9 @@ class atm_muons(Stage):
         # Write to the output container
         apply_atm_muon_sys(weight_mod,
                         atm_muon_scale,
-                        out=self.data[self.input_names[0]]['weights'].get(WHERE),
+                        out=self.data[self.input_names[0]]['weights'],
                        )
-        self.data[self.input_names[0]]['weights'].mark_changed(WHERE)
+        self.data[self.input_names[0))['weights')
 
 
 

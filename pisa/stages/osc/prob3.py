@@ -154,8 +154,6 @@ class prob3(Stage):
             apply_mode=apply_mode,
         )
 
-        assert self.calc_mode is not None
-        assert self.apply_mode is not None
 
         self.layers = None
         self.osc_params = None
@@ -265,7 +263,7 @@ class prob3(Stage):
             self.YeI = YeI; self.YeO = YeO; self.YeM = YeM
             self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)
             for container in self.data:
-                self.layers.calcLayers(container['true_coszen'].get('host'))
+                self.layers.calcLayers(container['true_coszen'])
                 container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
                 container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
 

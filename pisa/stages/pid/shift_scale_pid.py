@@ -32,9 +32,8 @@ class shift_scale_pid(Stage):
     input_names
     output_names
     debug_mode
-    input_specs
-    calc_specs
-    output_specs
+    calc_mode
+    apply_mode
 
     """
 
@@ -44,9 +43,8 @@ class shift_scale_pid(Stage):
                  input_names=None,
                  output_names=None,
                  debug_mode=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
+                 calc_mode=None,
+                 apply_mode=None,
                  ):
 
         # register expected parameters
@@ -55,11 +53,8 @@ class shift_scale_pid(Stage):
         input_names = ()
         output_names = ()
 
-        input_apply_keys = ('pid',)
 
-        output_calc_keys = ('calculated_pid',)
 
-        output_apply_keys = ('pid',)
 
         # init base class
         super().__init__(
@@ -69,23 +64,17 @@ class shift_scale_pid(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
-            output_calc_keys=output_calc_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
         assert self.calc_mode == 'events'
-        assert self.output_mode is not None
 
     def setup_function(self):
         """Setup the stage"""
 
         # set the correct data mode
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
         for container in self.data:
             container['calculated_pid'] = np.empty((container.size), dtype=FTYPE)
             container['original_pid'] = np.empty((container.size), dtype=FTYPE)
@@ -101,9 +90,9 @@ class shift_scale_pid(Stage):
         for container in self.data:
             calculate_pid_function(bias,
                                    scale,
-                                   container['original_pid'].get(WHERE),
-                                   out=container['calculated_pid'].get(WHERE))
-            container['calculated_pid'].mark_changed(WHERE)
+                                   container['original_pid'],
+                                   out=container['calculated_pid'])
+            container.mark_changed('calculated_pid')
 
     def apply_function(self):
         for container in self.data:

@@ -32,19 +32,16 @@ class csv_icc_hist(Stage):
         output_names=None,
         debug_mode=None,
         error_method=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
         # instantiation args that should not change
         self.events_file = events_file
 
         expected_params = ('atm_muon_scale',)
 
-        input_apply_keys = ('weights',)
 
         # copy of initial weights, to be modified by later stages
-        output_apply_keys = ('weights',)
 
         # init base class
         super().__init__(
@@ -55,11 +52,8 @@ class csv_icc_hist(Stage):
             output_names=output_names,
             debug_mode=debug_mode,
             error_method=error_method,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         assert self.output_mode == 'binned'
@@ -87,9 +81,6 @@ class csv_icc_hist(Stage):
             )
 
         # let's convert that into the right binning
-        container.array_to_binned('weights', self.output_specs)
-        container.array_to_binned('count', self.output_specs)
-        container.array_to_binned('errors', self.output_specs)
 
     @profile
     def apply_function(self):

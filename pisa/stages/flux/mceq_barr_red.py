@@ -90,9 +90,8 @@ class mceq_barr_red(Stage):
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         #
@@ -163,11 +162,8 @@ class mceq_barr_red(Stage):
         output_names = ()
 
         # Using Honda for nominal flux. Keys should already exist
-        input_calc_keys = ("nu_flux_nominal", "nubar_flux_nominal")
         # what are keys added or altered in the calculation used during apply
-        output_calc_keys = ("nu_flux", )
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ("nu_flux", )
 
         # store args
         self.table_file = table_file
@@ -180,21 +176,14 @@ class mceq_barr_red(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_calc_keys=input_calc_keys,
-            output_calc_keys=output_calc_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
-        assert self.calc_mode is not None
-        assert self.output_mode is not None
 
     def setup_function(self):
 
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
         #
         # Init arrays
@@ -203,7 +192,7 @@ class mceq_barr_red(Stage):
         # Prepare some array shapes
         gradient_params_shape = (len(self.gradient_param_names),)
 
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             # speed up calculation by adding links
             # as nominal flux doesn't depend on the (outgoing) flavour
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
@@ -322,7 +311,7 @@ class mceq_barr_red(Stage):
                 ## gradients[:, 2, gradient_param_idx].fill(0.0)
 
             # Tell the smart arrays we've changed the flux gradient values on the host
-            container["gradients"].mark_changed("host")
+            container.mark_changed("gradients").mark_changed("host")
 
         # don't forget to un-link everything again
         self.data.unlink_containers()
@@ -348,9 +337,9 @@ class mceq_barr_red(Stage):
     @profile
     def compute_function(self):
 
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             # speed up calculation by adding links
             # as nominal flux doesn't depend on the (outgoing) flavour
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
@@ -419,16 +408,16 @@ class mceq_barr_red(Stage):
             elif nubar < 0: flux_key = "nubar_flux_nominal"
 
             apply_sys_vectorized(
-                container["true_energy"].get(WHERE),
-                container["true_coszen"].get(WHERE),
+                container["true_energy"],
+                container["true_coszen"],
                 FTYPE(delta_index),
                 FTYPE(energy_pivot),
-                container[flux_key].get(WHERE),
-                container["gradients"].get(WHERE),
+                container[flux_key],
+                container["gradients"],
                 self.gradient_params,
-                out=container["nu_flux"].get(WHERE),
+                out=container["nu_flux"],
             )
-            container["nu_flux"].mark_changed(WHERE)
+            container.mark_changed("nu_flux")
 
             # Check for negative results from spline
             # TODO - add more spline error/misusage handling
@@ -437,7 +426,7 @@ class mceq_barr_red(Stage):
             if np.any(negative_mask):
                 container["nu_flux"].get("host")[negative_mask] = 0.0
 
-            container["nu_flux"].mark_changed("host")
+            container.mark_changed("nu_flux").mark_changed("host")
 
         # don't forget to un-link everything again
         self.data.unlink_containers()

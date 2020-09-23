@@ -31,19 +31,16 @@ class csv_data_hist(Stage):
                  input_names=None,
                  output_names=None,
                  debug_mode=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
+                 calc_mode=None,
+                 apply_mode=None,
                 ):
 
         # instantiation args that should not change
         self.events_file = events_file
 
         expected_params = ()
-        input_apply_keys = ('weights',
                            )
         # copy of initial weights, to be modified by later stages
-        output_apply_keys = (
             'weights',
         )
         # init base class
@@ -54,11 +51,8 @@ class csv_data_hist(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         assert self.output_mode == 'binned'
@@ -84,4 +78,3 @@ class csv_data_hist(Stage):
                 'No containers created during data loading for some reason.'
             )
 
-        container.array_to_binned('weights', self.output_specs)

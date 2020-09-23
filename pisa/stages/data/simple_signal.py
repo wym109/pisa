@@ -35,9 +35,8 @@ class simple_signal(Stage):
     input_names
     output_names
     debug_mode
-    input_specs
-    calc_specs
-    output_specs
+    calc_mode
+    apply_mode
 
     """
 
@@ -48,9 +47,8 @@ class simple_signal(Stage):
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
         expected_params = (  # parameters fixed during fit
             'n_events_data',
@@ -66,7 +64,6 @@ class simple_signal(Stage):
             'sigma')
 
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ('weights','errors')
 
         # init base class
         super().__init__(
@@ -76,10 +73,8 @@ class simple_signal(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            output_apply_keys=output_apply_keys
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         # doesn't calculate anything
@@ -108,7 +103,7 @@ class simple_signal(Stage):
         self.nbkg = self.n_mc-self.nsig                     # Number of bkg MC events
 
         # Go in events mode
-        self.data.data_specs = 'events'
+        self.data.representation = 'events'
 
         #
         # Create a signal container, with equal weights
@@ -124,7 +119,7 @@ class simple_signal(Stage):
         # Add empty bin_indices array (used in generalized poisson llh)
         signal_container.add_array_data('bin_indices', np.ones(self.nsig)*-1)
         # Add bin indices mask (used in generalized poisson llh)
-        for bin_i in range(self.output_specs.tot_num_bins):
+        for bin_i in range(self.apply_mode.tot_num_bins):
             signal_container.add_array_data(key='bin_{}_mask'.format(
                 bin_i), data=np.zeros(self.nsig, dtype=bool))
         # Add container to the data
@@ -142,7 +137,7 @@ class simple_signal(Stage):
             bkg_container.add_array_data('errors',(np.ones(self.nbkg)*1./stats_factor)**2. )
             bkg_container.add_array_data('bin_indices', np.ones(self.nbkg)*-1)
             # Add bin indices mask (used in generalized poisson llh)
-            for bin_i in range(self.output_specs.tot_num_bins):
+            for bin_i in range(self.apply_mode.tot_num_bins):
                 bkg_container.add_array_data(key='bin_{}_mask'.format(
                     bin_i), data=np.zeros(self.nbkg, dtype=bool))
 
@@ -151,12 +146,10 @@ class simple_signal(Stage):
         #
         # Bin the weights according to the output specs binning
         # Provide a binning if non is specified
-        # if self.output_specs is None:
-        #    self.output_specs = MultiDimBinning([OneDimBinning(name='stuff', bin_edges=np.linspace(0.,40.,21))])
+        # if self.apply_mode is None:
+        #    self.apply_mode = MultiDimBinning([OneDimBinning(name='stuff', bin_edges=np.linspace(0.,40.,21))])
 
         for container in self.data:
-            container.array_to_binned('weights', binning=self.output_specs, averaged=False)
-            container.array_to_binned('errors', binning=self.output_specs, averaged=False)
 
 
     def apply_function(self):
@@ -170,7 +163,7 @@ class simple_signal(Stage):
         #
         # Make sure we are in events mode
         #
-        self.data.data_specs = 'events'
+        self.data.representation = 'events'
 
         for container in self.data:
 
@@ -196,21 +189,19 @@ class simple_signal(Stage):
             # Recompute the bin indices associated with each event
             #
             new_array = lookup_indices(
-                sample=[container['stuff']], binning=self.output_specs)
-            new_array = new_array.get('host')
+                sample=[container['stuff']], binning=self.apply_mode)
+            new_array = new_array
             container["bin_indices"] = new_array
 
-            for bin_i in range(self.output_specs.tot_num_bins):
+            for bin_i in range(self.apply_mode.tot_num_bins):
                 container['bin_{}_mask'.format(bin_i)] = new_array == bin_i
 
         #
         # Re-bin the data
         #
         for container in self.data:
-            container.array_to_binned(
-                'weights', binning=self.output_specs, averaged=False)
-            container.array_to_binned(
-                'errors', binning=self.output_specs, averaged=False)
+                'weights', binning=self.apply_mode, averaged=False)
+                'errors', binning=self.apply_mode, averaged=False)
 
 
             #
@@ -218,20 +209,20 @@ class simple_signal(Stage):
             #
             if "n_mc_events" in container.binned_data.keys():
 
-                self.data.data_specs = 'events'
-                nevents_sim = np.zeros(self.output_specs.tot_num_bins)
+                self.data.representation = 'events'
+                nevents_sim = np.zeros(self.apply_mode.tot_num_bins)
 
-                for index in range(self.output_specs.tot_num_bins):
-                    index_mask = container['bin_{}_mask'.format(index)].get('host')
-                    current_weights = container['weights'].get('host')[index_mask]
+                for index in range(self.apply_mode.tot_num_bins):
+                    index_mask = container['bin_{}_mask'.format(index)]
+                    current_weights = container['weights'][index_mask]
                     n_weights = current_weights.shape[0]
 
                     # Number of MC events in each bin
                     nevents_sim[index] = n_weights
 
-                self.data.data_specs = self.output_specs
+                self.data.representation = self.apply_mode
                 np.copyto(src=nevents_sim,
-                          dst=container["n_mc_events"].get('host'))
+                          dst=container["n_mc_events"])
 
                 #
                 # Step 2: Re-calculate the mean adjustment for each container

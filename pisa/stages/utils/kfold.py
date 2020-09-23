@@ -64,20 +64,16 @@ class kfold(Stage):
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         expected_params = ()
         input_names = ()
         output_names = ()
 
-        input_apply_keys = ("weights",)
 
         # The weights are simply scaled by the earth survival probability
-        output_calc_keys = ("fold_weight",)
-        output_apply_keys = ("weights",)
 
         # init base class
         super().__init__(
@@ -87,17 +83,11 @@ class kfold(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_calc_keys=output_calc_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
         assert self.calc_mode == "events"
-        assert self.output_mode is not None
 
         self.n_splits = int(n_splits)
         self.select_split = int(select_split)
@@ -125,12 +115,12 @@ class kfold(Stage):
                 kf.get_n_splits(container["weights"]) if self.renormalize else 1.0
             )
             container["fold_weight"][select_idx] = select_weight
-            container["fold_weight"].mark_changed(WHERE)
+            container.mark_changed("fold_weight")
 
             if self.save_mask:
                 container['kfold_mask'] = np.zeros((container.size), dtype=np.bool)
                 container['kfold_mask'][select_idx] = 1
-                container['kfold_mask'].mark_changed(WHERE)
+                container.mark_changed('kfold_mask')
 
 
     def apply_function(self):

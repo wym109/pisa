@@ -48,9 +48,8 @@ class resample(Stage):  # pylint: disable=invalid-name
         output_names=None,
         debug_mode=None,
         error_method=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         expected_params = ()
@@ -58,14 +57,11 @@ class resample(Stage):  # pylint: disable=invalid-name
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ("weights",)
 
         # what are keys added or altered in the calculation used during apply
-        assert calc_specs is None
+        assert calc_mode is None
         if scale_errors:
-            output_apply_keys = ("weights_resampled", "errors_resampled")
         else:
-            output_apply_keys = ("weights_resampled",)
         
         map_output_key = "weights_resampled"
         map_output_error_key = "errors_resampled"
@@ -79,11 +75,8 @@ class resample(Stage):  # pylint: disable=invalid-name
             output_names=output_names,
             debug_mode=debug_mode,
             error_method=error_method,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
             map_output_key=map_output_key,
             map_output_error_key=map_output_error_key,
         )
@@ -94,15 +87,11 @@ class resample(Stage):  # pylint: disable=invalid-name
         
         self.scale_errors = scale_errors
         
-        # The following tests whether `output_specs` is a strict up-sample
-        # from `input_specs`, i.e. the bin edges of `output_specs` are a superset
-        # of the bin edges of `input_specs`.
+        # The following tests whether `apply_mode` is a strict up-sample
         
         # TODO: Test for ability to resample in two steps
         # TODO: Update to new test nomenclature
-        if input_specs.is_compat(output_specs):
             self.rs_mode = ResampleMode.UP
-        elif output_specs.is_compat(input_specs):
             self.rs_mode = ResampleMode.DOWN
         else:
             raise ValueError("Binnings are not compatible with each other for resample")
@@ -116,11 +105,10 @@ class resample(Stage):  # pylint: disable=invalid-name
 
     def setup_function(self):
         # Set up a container for intermediate storage of variances in input specs
-        self.data.data_specs = self.input_specs
         for container in self.data:
             container["variances"] = np.empty((container.size), dtype=FTYPE)
         # set up containers for the resampled output in the output specs
-        self.data.data_specs = self.output_specs
+        self.data.representation = self.apply_mode
         for container in self.data:
             container["weights_resampled"] = np.empty((container.size), dtype=FTYPE)
             if self.scale_errors:
@@ -136,7 +124,6 @@ class resample(Stage):  # pylint: disable=invalid-name
         # because we are manipulating the data binning in a delicate way that doesn't
         # work with automatic rebinning.
 
-        self.data.data_specs = self.input_specs
         if self.scale_errors:
             for container in self.data:
                 vectorizer.pow(
@@ -146,25 +133,23 @@ class resample(Stage):  # pylint: disable=invalid-name
                 )
 
         input_binvols = SmartArray(
-            self.input_specs.weighted_bin_volumes(attach_units=False).ravel()
         )
         output_binvols = SmartArray(
-            self.output_specs.weighted_bin_volumes(attach_units=False).ravel()
+            self.apply_mode.weighted_bin_volumes(attach_units=False).ravel()
         )
         
         for container in self.data:
-            self.data.data_specs = self.input_specs
-            # we want these to be SmartArrays, so no `.get(WHERE)`
+            # we want these to be SmartArrays, so no ``
             weights_flat_hist = container["weights"]
             if self.scale_errors:
                 vars_flat_hist = container["variances"]
-            self.data.data_specs = self.output_specs
+            self.data.representation = self.apply_mode
             if self.rs_mode == ResampleMode.UP:
                 # The `unroll_binning` function returns the midpoints of the bins in the
                 # dimension `name`.
                 fine_gridpoints = [
-                    SmartArray(container.unroll_binning(name, self.output_specs))
-                    for name in self.output_specs.names
+                    SmartArray(container.unroll_binning(name, self.apply_mode))
+                    for name in self.apply_mode.names
                 ]
                 # We look up at which bin index of the input binning the midpoints of
                 # the output binning can be found, and assign to each the content of the
@@ -172,19 +157,16 @@ class resample(Stage):  # pylint: disable=invalid-name
                 container["weights_resampled"] = translation.lookup(
                     fine_gridpoints,
                     weights_flat_hist,
-                    self.input_specs,
                 )
                 if self.scale_errors:
                     container["vars_resampled"] = translation.lookup(
                         fine_gridpoints,
                         vars_flat_hist,
-                        self.input_specs,
                     )
                 # These are the volumes of the bins we sample *from*
                 origin_binvols = translation.lookup(
                     fine_gridpoints,
                     input_binvols,
-                    self.input_specs,
                 )
                 # Finally, we scale the weights and variances by the ratio of the
                 # bin volumes in place:
@@ -213,17 +195,16 @@ def test_resample():
     from copy import deepcopy
     
     example_cfg = parse_pipeline_config('settings/pipeline/example.cfg')
-    reco_binning = example_cfg[('utils', 'hist')]['output_specs']
+    reco_binning = example_cfg[('utils', 'hist')]['apply_mode']
     coarse_binning = reco_binning.downsample(reco_energy=2, reco_coszen=2)
     assert coarse_binning.is_compat(reco_binning)
     
     # replace binning of output with coarse binning
-    example_cfg[('utils', 'hist')]['output_specs'] = coarse_binning
+    example_cfg[('utils', 'hist')]['apply_mode'] = coarse_binning
     # make another pipeline with an upsampling stage to the original binning
     upsample_cfg = deepcopy(example_cfg)
     resample_cfg = OrderedDict()
-    resample_cfg['input_specs'] = coarse_binning
-    resample_cfg['output_specs'] = reco_binning
+    resample_cfg['apply_mode'] = reco_binning
     resample_cfg['scale_errors'] = True
     upsample_cfg[('utils', 'resample')] = resample_cfg
 

@@ -35,9 +35,8 @@ class honda_ip(Stage):
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         expected_params = ('flux_table',)
@@ -45,13 +44,10 @@ class honda_ip(Stage):
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_calc_keys = ()
 
         # what are keys added or altered in the calculation used during apply
-        output_calc_keys = ('nu_flux_nominal', 'nubar_flux_nominal')
 
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ('nu_flux_nominal', 'nubar_flux_nominal')
 
         # init base class
         super().__init__(
@@ -61,24 +57,18 @@ class honda_ip(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_calc_keys=input_calc_keys,
-            output_calc_keys=output_calc_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         assert self.input_mode is None
-        assert self.calc_mode is not None
-        assert self.output_mode is not None
 
     def setup_function(self):
 
         self.flux_table = load_2d_table(self.params.flux_table.value)
 
-        self.data.data_specs = self.calc_specs
-        if self.calc_mode == 'binned':
+        self.data.representation = self.calc_mode
+        if self.data.is_map:
             # speed up calculation by adding links
             # as nominal flux doesn't depend on the (outgoing) flavour
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
@@ -96,9 +86,9 @@ class honda_ip(Stage):
     @profile
     def compute_function(self):
 
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             # speed up calculation by adding links
             # as nominal flux doesn't depend on the (outgoing) flavour
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
@@ -113,13 +103,13 @@ class honda_ip(Stage):
         for container in self.data:
             for out_name, index, table in zip(out_names, indices, tables):
                 logging.info('Calculating nominal %s flux for %s', table, container.name)
-                calculate_2d_flux_weights(true_energies=container['true_energy'].get('host'),
-                                           true_coszens=container['true_coszen'].get('host'),
+                calculate_2d_flux_weights(true_energies=container['true_energy'],
+                                           true_coszens=container['true_coszen'],
                                            en_splines=self.flux_table[table],
-                                           out=container[out_name].get('host')[:, index]
+                                           out=container[out_name][:, index]
                                           )
-            container['nu_flux_nominal'].mark_changed('host')
-            container['nubar_flux_nominal'].mark_changed('host')
+            container.mark_changed('nu_flux_nominal')
+            container.mark_changed('nubar_flux_nominal')
 
         # don't forget to un-link everything again
         self.data.unlink_containers()
@@ -127,10 +117,10 @@ class honda_ip(Stage):
 
     # def apply_function(self):
 
-    #     self.data.data_specs = self.output_specs
+    #     self.data.representation = self.apply_mode
 
     #     # Set flux to be the nominal flux (choosing correct nu vs nubar flux for the container)
     #     # Note that a subsequent systematic flux stage may change this
     #     for container in self.data:
     #         np.copyto( src=container["nu%s_flux_nominal"%("" if container["nubar"] > 0 else "bar")].get("host"), dst=container["nu_flux"].get("host") )
-    #         container['nu_flux'].mark_changed('host')
+    #         container.mark_changed('nu_flux')

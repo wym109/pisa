@@ -37,9 +37,8 @@ class 2nu(Stage):
                  input_names=None,
                  output_names=None,
                  debug_mode=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
+                 calc_mode=None,
+                 apply_mode=None,
                 ):
 
         expected_params = (
@@ -51,14 +50,12 @@ class 2nu(Stage):
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ('weights',
                             'nu_flux',
                             'true_energy',
                             'true_coszen',
                            )
 
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ('weights',
                       )
 
         # init base class
@@ -69,14 +66,10 @@ class 2nu(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.output_mode is not None
 
     @profile
     def apply_function(self):
@@ -86,34 +79,34 @@ class 2nu(Stage):
 
         for container in self.data:
             if 'numu' in container.name:
-              apply_probs_vectorized(container['nu_flux'].get(WHERE),
+              apply_probs_vectorized(container['nu_flux'],
                                     FTYPE(theta),
                                     FTYPE(deltam31),
-                                    container['true_energy'].get(WHERE),
-                                    container['true_coszen'].get(WHERE),
+                                    container['true_energy'],
+                                    container['true_coszen'],
                                     ITYPE(1),
-                                    out=container['weights'].get(WHERE),
+                                    out=container['weights'],
                                    )
 
             if 'nutau' in container.name:
-              apply_probs_vectorized(container['nu_flux'].get(WHERE),
+              apply_probs_vectorized(container['nu_flux'],
                                     FTYPE(theta),
                                     FTYPE(deltam31),
-                                    container['true_energy'].get(WHERE),
-                                    container['true_coszen'].get(WHERE),
+                                    container['true_energy'],
+                                    container['true_coszen'],
                                     ITYPE(3),
-                                    out=container['weights'].get(WHERE),
+                                    out=container['weights'],
                                    )
             if 'nue' in container.name:
-              apply_probs_vectorized(container['nu_flux'].get(WHERE),
+              apply_probs_vectorized(container['nu_flux'],
                                     FTYPE(theta),
                                     FTYPE(deltam31),
-                                    container['true_energy'].get(WHERE),
-                                    container['true_coszen'].get(WHERE),
+                                    container['true_energy'],
+                                    container['true_coszen'],
                                     ITYPE(0),
-                                    out=container['weights'].get(WHERE),
+                                    out=container['weights'],
                                    )            
-            container['weights'].mark_changed(WHERE) 
+            container.mark_changed('weights') 
 
 @myjit
 def calc_probs(t23, dm31, true_energy, true_coszen): #

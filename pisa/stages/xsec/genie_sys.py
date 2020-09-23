@@ -31,9 +31,8 @@ class genie_sys(Stage): # pylint: disable=invalid-name
     input_names
     output_names
     debug_mode
-    input_specs
-    calc_specs
-    output_specs
+    calc_mode
+    apply_mode
 
     Notes
     -----
@@ -56,9 +55,8 @@ class genie_sys(Stage): # pylint: disable=invalid-name
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
         expected_params = (
             'Genie_Ma_QE',
@@ -68,14 +66,12 @@ class genie_sys(Stage): # pylint: disable=invalid-name
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = (
             'linear_fit_maccqe',
             'quad_fit_maccqe',
             'linear_fit_maccres',
             'quad_fit_maccres',
         )
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = (
             'weights',
         )
 
@@ -87,16 +83,11 @@ class genie_sys(Stage): # pylint: disable=invalid-name
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
         assert self.calc_mode is None
-        assert self.output_mode is not None
 
     def setup_function(self):
         '''
@@ -119,12 +110,12 @@ class genie_sys(Stage): # pylint: disable=invalid-name
         for container in self.data:
             apply_genie_sys(
                 genie_ma_qe,
-                container['linear_fit_maccqe'].get(WHERE),
-                container['quad_fit_maccqe'].get(WHERE),
+                container['linear_fit_maccqe'],
+                container['quad_fit_maccqe'],
                 genie_ma_res,
-                container['linear_fit_maccres'].get(WHERE),
-                container['quad_fit_maccres'].get(WHERE),
-                out=container['weights'].get(WHERE),
+                container['linear_fit_maccres'],
+                container['quad_fit_maccres'],
+                out=container['weights'],
             )
 
             #
@@ -132,7 +123,7 @@ class genie_sys(Stage): # pylint: disable=invalid-name
             # the range of the points used in the interpolation, some 
             # weights become negative. These are floored at 0.
             #
-            container['weights'].mark_changed(WHERE)
+            container.mark_changed('weights')
 
 
 

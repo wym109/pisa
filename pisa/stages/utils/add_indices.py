@@ -38,9 +38,8 @@ class add_indices(Stage):
     input_names
     output_names
     debug_mode
-    input_specs: 
-    calc_specs : must be events
-    output_specs: must be a MultiDimBinnig
+    calc_mode : must be events
+    apply_mode: must be a MultiDimBinnig
 
     Notes:
     ------
@@ -62,9 +61,8 @@ class add_indices(Stage):
                  input_names=None,
                  output_names=None,
                  debug_mode=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
+                 calc_mode=None,
+                 apply_mode=None,
                 ):
 
         #
@@ -74,13 +72,10 @@ class add_indices(Stage):
         expected_params = ()
         input_names = ()
         output_names = ()
-        input_apply_keys = ()
 
         # We add the bin_indices key
         # (but not in the apply function so maybe useless...)
         #
-        output_calc_keys = ('bin_indices',)
-        output_apply_keys = ()
 
         # init base class
         super(add_indices, self).__init__(data=data,
@@ -89,18 +84,11 @@ class add_indices(Stage):
                                        input_names=input_names,
                                        output_names=output_names,
                                        debug_mode=debug_mode,
-                                       input_specs=input_specs,
-                                       calc_specs=calc_specs,
-                                       output_specs=output_specs,
-                                       input_apply_keys=input_apply_keys,
-                                       output_apply_keys=output_apply_keys,
-                                       output_calc_keys=output_calc_keys,
+                                       calc_mode=calc_mode,
+                                       apply_mode=apply_mode,
                                        )
 
         # make sure the user specified some modes
-        assert self.input_mode is not None
-        assert self.calc_mode is not None
-        assert self.output_mode is not None
 
     def setup_function(self):
         '''
@@ -109,26 +97,26 @@ class add_indices(Stage):
         Create one mask for each analysis bin.
         '''
         
-        assert self.calc_specs == 'events', 'ERROR: calc specs must be set to "events for this module'
+        assert self.calc_mode == 'events', 'ERROR: calc specs must be set to "events for this module'
 
-        self.data.data_specs = 'events'
+        self.data.representation = 'events'
 
         for container in self.data:
             # Generate a new container called bin_indices
             container['bin_indices'] = np.empty((container.size), dtype=np.int64)
   
             variables_to_bin = []
-            for bin_name in self.output_specs.names:
+            for bin_name in self.apply_mode.names:
                 variables_to_bin.append(container[bin_name])
 
             new_array = lookup_indices(sample=variables_to_bin,
-                                       binning=self.output_specs)
+                                       binning=self.apply_mode)
 
-            new_array = new_array.get('host')
-            np.copyto(src=new_array, dst=container["bin_indices"].get('host'))
+            new_array = new_array
+            np.copyto(src=new_array, dst=container["bin_indices"])
 
 
-            for bin_i in range(self.output_specs.tot_num_bins):
+            for bin_i in range(self.apply_mode.tot_num_bins):
                 container.add_array_data(key='bin_{}_mask'.format(bin_i), 
                                          data=(new_array == bin_i))
 

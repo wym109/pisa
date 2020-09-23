@@ -44,9 +44,8 @@ class kde(Stage):
                  output_names=None,
                  debug_mode=None,
                  error_method=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
+                 calc_mode=None,
+                 apply_mode=None,
                 ):
 
         self.bw_method = bw_method
@@ -58,12 +57,10 @@ class kde(Stage):
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ('weights',
                            )
 
         # what are keys added or altered in the calculation used during apply
-        assert calc_specs is None
-        output_apply_keys = ('weights',
+        assert calc_mode is None
                             )
 
 
@@ -76,11 +73,8 @@ class kde(Stage):
             output_names=output_names,
             debug_mode=debug_mode,
             error_method=error_method,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         assert self.input_mode == 'events'
@@ -93,12 +87,11 @@ class kde(Stage):
         # normally in a stage you would implement the `apply_function` method
         # and not the `apply` method!
 
-        binning = self.output_specs
+        binning = self.apply_mode
 
         for container in self.data:
-            self.data.data_specs = self.input_specs
-            sample = np.stack([container[n].get('host') for n in binning.names]).T
-            weights = container['weights'].get('host')
+            sample = np.stack([container[n] for n in binning.names]).T
+            weights = container['weights']
 
             kde_map = kde_histogramdd(sample=sample,
                             binning=binning,
@@ -111,6 +104,6 @@ class kde(Stage):
 
             kde_map = np.ascontiguousarray(kde_map.ravel())
 
-            self.data.data_specs = self.output_specs
+            self.data.representation = self.apply_mode
             container['weights'] = kde_map
-            container['weights'].mark_changed('host')
+            container.mark_changed('weights')

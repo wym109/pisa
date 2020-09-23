@@ -232,17 +232,17 @@ def test_prob3numba(ignore_fails=False, define_as_ref=False):
     probabilities = SmartArray(np.full(shape=out_shape, fill_value=np.nan, dtype=FX))
 
     propagate_array(
-        SmartArray(tc_["dm"].astype(FX)).get(WHERE),
-        SmartArray(tc_["pmns"].astype(CX)).get(WHERE),
-        SmartArray(tc_["mat_pot"].astype(CX)).get(WHERE),
-        SmartArray(nubars).get(WHERE),
-        SmartArray(energies).get(WHERE),
-        SmartArray(tc_["layer_densities"].astype(FX)).get(WHERE),
-        SmartArray(tc_["layer_distances"].astype(FX)).get(WHERE),
+        SmartArray(tc_["dm"].astype(FX)),
+        SmartArray(tc_["pmns"].astype(CX)),
+        SmartArray(tc_["mat_pot"].astype(CX)),
+        SmartArray(nubars),
+        SmartArray(energies),
+        SmartArray(tc_["layer_densities"].astype(FX)),
+        SmartArray(tc_["layer_distances"].astype(FX)),
         # output:
-        probabilities.get(WHERE),
+        probabilities,
     )
-    probabilities.mark_changed(WHERE)
+    probabilities
     probabilities = probabilities.get("host")
 
     # Check that all probability matrices have no NaNs and are equal to one
@@ -605,7 +605,7 @@ def execute_func(func, func_kw):
     ret_dict = OrderedDict()
     for key, val in typed_args.items():
         if isinstance(val, SmartArray):
-            val.mark_changed(WHERE)
+            val
             val = val.get("host")
         ret_dict[key] = val
 

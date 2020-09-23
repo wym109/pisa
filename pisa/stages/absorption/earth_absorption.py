@@ -81,20 +81,16 @@ class earth_absorption(Stage):
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         expected_params = ()
         input_names = ()
         output_names = ()
 
-        input_apply_keys = ('weights',)
 
         # The weights are simply scaled by the earth survival probability
-        output_calc_keys = ('survival_prob',)
-        output_apply_keys = ('weights',)
 
         # init base class
         super().__init__(
@@ -104,17 +100,10 @@ class earth_absorption(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_calc_keys=output_calc_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
-        assert self.calc_mode is not None
-        assert self.output_mode is not None
 
         self.layers = None
         self.xsroot = None
@@ -138,10 +127,10 @@ class earth_absorption(Stage):
         # setup cross-sections
         self.xsroot = ROOT.TFile(self.xsec_file)
         # set the correct data mode
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
         # --- calculate the layers ---
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             # layers don't care about flavor
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
                                              'nue_nc', 'numu_nc', 'nutau_nc',
@@ -149,19 +138,19 @@ class earth_absorption(Stage):
                                              'nuebar_nc', 'numubar_nc', 'nutaubar_nc'])
 
         for container in self.data:
-            self.layers.calcLayers(container['true_coszen'].get('host'))
+            self.layers.calcLayers(container['true_coszen'])
             container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
             container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
             container['rho_int'] = np.empty((container.size), dtype=FTYPE)
             
-            container['densities'].mark_changed(WHERE)
-            container['distances'].mark_changed(WHERE)
-            container['rho_int'].mark_changed(WHERE)
+            container.mark_changed('densities')
+            container.mark_changed('distances')
+            container.mark_changed('rho_int')
         # don't forget to un-link everything again
         self.data.unlink_containers()
 
         # --- setup cross section and survival probability ---
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             # The cross-sections do not depend on nc/cc, so we can at least link those containers
             self.data.link_containers('nue', ['nue_cc', 'nue_nc'])
             self.data.link_containers('nuebar', ['nuebar_cc', 'nuebar_nc'])
@@ -177,23 +166,23 @@ class earth_absorption(Stage):
     @profile
     def compute_function(self):
         # --- calculate the integrated density in the layers ---
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
                                              'nue_nc', 'numu_nc', 'nutau_nc',
                                              'nuebar_cc', 'numubar_cc', 'nutaubar_cc',
                                              'nuebar_nc', 'numubar_nc', 'nutaubar_nc'])
 
         for container in self.data:
-            calculate_integrated_rho(container['distances'].get(WHERE),
-                                     container['densities'].get(WHERE),
-                                     out=container['rho_int'].get(WHERE)
+            calculate_integrated_rho(container['distances'],
+                                     container['densities'],
+                                     out=container['rho_int']
                                     )
-            container['rho_int'].mark_changed(WHERE)
+            container.mark_changed('rho_int')
         # don't forget to un-link everything again
         self.data.unlink_containers()
 
         # --- calculate survival probability ---
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             # The cross-sections do not depend on nc/cc, so we can at least link those containers
             self.data.link_containers('nue', ['nue_cc', 'nue_nc'])
             self.data.link_containers('nuebar', ['nuebar_cc', 'nuebar_nc'])
@@ -204,14 +193,14 @@ class earth_absorption(Stage):
         for container in self.data:
             container['xsection'] = self.calculate_xsections(container['flav'],
                                                              container['nubar'],
-                                                             container['true_energy'].get(WHERE)
+                                                             container['true_energy']
                                                             )
-            container['xsection'].mark_changed(WHERE)
-            calculate_survivalprob(container['rho_int'].get(WHERE),
-                                   container['xsection'].get(WHERE),
-                                   out=container['survival_prob'].get(WHERE)
+            container.mark_changed('xsection')
+            calculate_survivalprob(container['rho_int'],
+                                   container['xsection'],
+                                   out=container['survival_prob']
                                   )
-            container['survival_prob'].mark_changed(WHERE)
+            container.mark_changed('survival_prob')
         self.data.unlink_containers()
 
     @profile

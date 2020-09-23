@@ -26,24 +26,13 @@ class hist(Stage):  # pylint: disable=invalid-name
         output_names=None,
         debug_mode=None,
         error_method=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         expected_params = ()
         input_names = ()
         output_names = ()
-
-        # what are the keys used from the inputs during apply
-        input_apply_keys = ('weights',)
-
-        # what are keys added or altered in the calculation used during apply
-        assert calc_specs is None
-        if error_method in ['sumw2']:
-            output_apply_keys = ('weights', 'errors')
-        else:
-            output_apply_keys = ('weights',)
 
         # init base class
         super().__init__(
@@ -54,23 +43,18 @@ class hist(Stage):  # pylint: disable=invalid-name
             output_names=output_names,
             debug_mode=debug_mode,
             error_method=error_method,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
         assert self.output_mode == 'binned'
 
     def setup_function(self):
         # create the variables to be filled in `apply`
         if self.error_method in ['sumw2']:
-            self.data.data_specs = self.input_specs
             for container in self.data:
                 container['weights_squared'] = np.empty((container.size), dtype=FTYPE)
-            self.data.data_specs = self.output_specs
+            self.data.representation = self.apply_mode
             for container in self.data:
                 container['errors'] = np.empty((container.size), dtype=FTYPE)
 
@@ -81,8 +65,11 @@ class hist(Stage):  # pylint: disable=invalid-name
         # normally in a stage you would implement the `apply_function` method
         # and not the `apply` method!
 
+
+        raise NotImplementedError('Needs some care, broken in pisa4')
+
         if self.input_mode == 'binned':
-            self.data.data_specs = self.output_specs
+            self.data.representation = self.apply_mode
             for container in self.data:
                 # calcualte errors
                 if self.error_method in ['sumw2']:
@@ -97,7 +84,6 @@ class hist(Stage):  # pylint: disable=invalid-name
 
         elif self.input_mode == 'events':
             for container in self.data:
-                self.data.data_specs = self.input_specs
                 # calcualte errors
                 if self.error_method in ['sumw2']:
                     vectorizer.pow(
@@ -105,11 +91,9 @@ class hist(Stage):  # pylint: disable=invalid-name
                         pwr=2,
                         out=container['weights_squared'],
                     )
-                self.data.data_specs = self.output_specs
-                container.array_to_binned('weights', self.output_specs, averaged=False)
+                self.data.representation = self.apply_mode
                 if self.error_method in ['sumw2']:
-                    container.array_to_binned(
-                        'weights_squared', self.output_specs, averaged=False
+                        'weights_squared', self.apply_mode, averaged=False
                     )
                     vectorizer.sqrt(
                         vals=container['weights_squared'], out=container['errors']

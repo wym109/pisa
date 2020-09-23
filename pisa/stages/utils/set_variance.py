@@ -30,9 +30,8 @@ class set_variance(Stage):  # pylint: disable=invalid-name
         output_names=None,
         debug_mode=None,
         error_method=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         expected_params = ()
@@ -40,9 +39,6 @@ class set_variance(Stage):  # pylint: disable=invalid-name
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ("weights", "errors")
-        output_calc_keys = ("manual_variance",)
-        output_apply_keys = ("weights", "errors")
 
         # init base class
         super().__init__(
@@ -53,12 +49,8 @@ class set_variance(Stage):  # pylint: disable=invalid-name
             output_names=output_names,
             debug_mode=debug_mode,
             error_method=error_method,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            output_calc_keys=output_calc_keys,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         assert self.input_mode == "binned"
@@ -77,11 +69,10 @@ class set_variance(Stage):  # pylint: disable=invalid-name
         
     def setup_function(self):
         if self.divide_n:
-            self.data.data_specs = "events"
+            self.data.representation = "events"
             for container in self.data:
                 self.total_mc[container.name] = container.size
                 logging.debug(f"{container.size} mc events in container {container.name}")
-        self.data.data_specs = self.input_specs
         for container in self.data:
             container["manual_variance"] = np.empty((container.size), dtype=FTYPE)
             if "errors" not in container.keys():
@@ -111,16 +102,16 @@ class set_variance(Stage):  # pylint: disable=invalid-name
 FX = "f4" if FTYPE == np.float32 else "f8"
 
 def apply_floor(val, out):
-    apply_floor_gufunc(FTYPE(val), out=out.get(WHERE))
-    out.mark_changed(WHERE)
+    apply_floor_gufunc(FTYPE(val), out=out)
+    out
 
 @guvectorize([f"({FX}, {FX}[:])"], "() -> ()", target=TARGET)
 def apply_floor_gufunc(val, out):
     out[0] = val if out[0] < val else out[0]
 
 def set_constant(val, out):
-    set_constant_gufunc(FTYPE(val), out=out.get(WHERE))
-    out.mark_changed(WHERE)
+    set_constant_gufunc(FTYPE(val), out=out)
+    out
 
 @guvectorize([f"({FX}, {FX}[:])"], "() -> ()", target=TARGET)
 def set_constant_gufunc(val, out):

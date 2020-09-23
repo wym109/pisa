@@ -33,9 +33,8 @@ class csv_loader(Stage):
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         # instantiation args that should not change
@@ -44,10 +43,8 @@ class csv_loader(Stage):
         expected_params = ()
 
         # created as ones if not already present
-        input_apply_keys = ('initial_weights',)
 
         # copy of initial weights, to be modified by later stages
-        output_apply_keys = ('weights',)
 
         # init base class
         super().__init__(
@@ -57,15 +54,11 @@ class csv_loader(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         # doesn't calculate anything
-        if self.calc_mode is not None:
             raise ValueError(
                 'There is nothing to calculate for this event loading service.'
                 ' Hence, `calc_mode` must not be set.'
@@ -77,7 +70,6 @@ class csv_loader(Stage):
                 ' unique.'
             )
 
-        assert self.input_specs == 'events'
 
     def setup_function(self):
 
@@ -88,7 +80,6 @@ class csv_loader(Stage):
 
             # make container
             container = Container(name)
-            container.data_specs = self.input_specs
             nubar = -1 if 'bar' in name else 1
             if 'e' in name:
                 flav = 0
@@ -116,8 +107,8 @@ class csv_loader(Stage):
             container['reco_energy'] = events['reco_energy'].values.astype(FTYPE)
             container['reco_coszen'] = events['reco_coszen'].values.astype(FTYPE)
             container['pid'] = events['pid'].values.astype(FTYPE)
-            container.add_scalar_data('nubar', nubar)
-            container.add_scalar_data('flav', flav)
+            container.set_aux_data('nubar', nubar)
+            container.set_aux_data('flav', flav)
 
             self.data.add_container(container)
 
@@ -130,7 +121,6 @@ class csv_loader(Stage):
         # test
         if self.output_mode == 'binned':
             for container in self.data:
-                container.array_to_binned('weights', self.output_specs)
 
     @profile
     def apply_function(self):

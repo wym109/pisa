@@ -77,9 +77,8 @@ class generalized_llh_params(Stage):
 		input_names=None,
 		output_names=None,
 		debug_mode=None,
-		input_specs=None,
-		calc_specs=None,
-		output_specs=None,
+		calc_mode=None,
+		apply_mode=None,
 		):
 		#
 		# A bunch of options we don't need
@@ -89,11 +88,8 @@ class generalized_llh_params(Stage):
 		output_names = ()
 
 		# what are the keys used from the inputs during apply
-		input_apply_keys = ('bin_indices','errors')
 		# what are keys added or altered in the calculation used during apply
-		output_calc_keys = ('weights',)
 		# what keys are added or altered for the outputs during apply
-		output_apply_keys = ('weights', 'errors', 'llh_alphas', 'hs_scales',
 							 'llh_betas', 'n_mc_events', 'old_sum')
 
 		# init base class
@@ -103,12 +99,8 @@ class generalized_llh_params(Stage):
 												 input_names=input_names,
 												 output_names=output_names,
 												 debug_mode=debug_mode,
-												 input_specs=input_specs,
-												 calc_specs=calc_specs,
-												 output_specs=output_specs,
-												 input_apply_keys=input_apply_keys,
-												 output_apply_keys=output_apply_keys,
-												 output_calc_keys=output_calc_keys,
+												 calc_mode=calc_mode,
+												 apply_mode=apply_mode,
 												 )
 
 	def setup_function(self):
@@ -118,9 +110,9 @@ class generalized_llh_params(Stage):
 		compute mean adjustment
 		"""
 
-		N_bins = self.output_specs.tot_num_bins
+		N_bins = self.apply_mode.tot_num_bins
 
-		self.data.data_specs = self.output_specs
+		self.data.representation = self.apply_mode
 
 		for container in self.data:
 
@@ -135,20 +127,20 @@ class generalized_llh_params(Stage):
 			#
 			# Step 1: assert the number of MC events in each bin,
 			#         for each container
-			self.data.data_specs = 'events'
+			self.data.representation = 'events'
 			nevents_sim = np.zeros(N_bins)
 
 			for index in range(N_bins):
-				index_mask = container['bin_{}_mask'.format(index)].get('host')
+				index_mask = container['bin_{}_mask'.format(index)]
 				if 'kfold_mask' in container:
-					index_mask*=container['kfold_mask'].get('host')
+					index_mask*=container['kfold_mask']
 				# Number of MC events in each bin
 				nevents_sim[index] = np.sum(index_mask)
 
-			self.data.data_specs = self.output_specs
+			self.data.representation = self.apply_mode
 			np.copyto(src=nevents_sim,
-					  dst=container["n_mc_events"].get('host'))
-			container['n_mc_events'].mark_changed()
+					  dst=container["n_mc_events"])
+			container.mark_changed('n_mc_events')
 
 			#
 			# Step 2: Calculate the mean adjustment for each container
@@ -158,7 +150,7 @@ class generalized_llh_params(Stage):
 				mean_adjustment = -(1.0-mean_number_of_mc_events) + 1.e-3
 			else:
 				mean_adjustment = 0.0
-			container.add_scalar_data(key='mean_adjustment', data=mean_adjustment)
+			container.set_aux_data(key='mean_adjustment', data=mean_adjustment)
 
 
 			#
@@ -177,7 +169,7 @@ class generalized_llh_params(Stage):
 		function on every iteration of the minimizer
 
 		'''
-		N_bins = self.output_specs.tot_num_bins
+		N_bins = self.apply_mode.tot_num_bins
 
 		#
 		# Step 4: Apply the empty bin strategy and mean adjustment
@@ -186,7 +178,7 @@ class generalized_llh_params(Stage):
 		#
 		for container in self.data:
 
-			self.data.data_specs = 'events'
+			self.data.representation = 'events'
 
 			#
 			# Step 3: Find the maximum weight accross all events
@@ -197,7 +189,7 @@ class generalized_llh_params(Stage):
 			# for this part we are in events mode
 			# Find the minimum weight of an entire MC set
 			pseudo_weight = 0.001
-			container.add_scalar_data(key='pseudo_weight', data=pseudo_weight)
+			container.set_aux_data(key='pseudo_weight', data=pseudo_weight)
 
 			old_weight_sum = np.zeros(N_bins)
 			new_weight_sum = np.zeros(N_bins)
@@ -212,10 +204,10 @@ class generalized_llh_params(Stage):
 
 			for index in range(N_bins):
 
-				index_mask = container['bin_{}_mask'.format(index)].get('host')
+				index_mask = container['bin_{}_mask'.format(index)]
 				if 'kfold_mask' in container:
-					index_mask*=container['kfold_mask'].get('host')
-				current_weights = container['weights'].get('host')[index_mask]
+					index_mask*=container['kfold_mask']
+				current_weights = container['weights'][index_mask]
 
 				old_weight_sum[index] += np.sum(current_weights)
 
@@ -259,15 +251,15 @@ class generalized_llh_params(Stage):
 				betas_vector[index] = beta
 
 			# Calculate alphas and betas
-			self.data.data_specs = self.output_specs
-			np.copyto(src=alphas_vector, dst=container['llh_alphas'].get('host'))
-			np.copyto(src=betas_vector, dst=container['llh_betas'].get('host'))
-			np.copyto(src=new_weight_sum, dst=container['weights'].get('host'))
-			np.copyto(src=old_weight_sum, dst=container['old_sum'].get('host'))
-			container['llh_alphas'].mark_changed()
-			container['llh_betas'].mark_changed()
-			container['old_sum'].mark_changed()
-			container['weights'].mark_changed()
+			self.data.representation = self.apply_mode
+			np.copyto(src=alphas_vector, dst=container['llh_alphas'])
+			np.copyto(src=betas_vector, dst=container['llh_betas'])
+			np.copyto(src=new_weight_sum, dst=container['weights'])
+			np.copyto(src=old_weight_sum, dst=container['old_sum'])
+			container.mark_changed('llh_alphas')
+			container.mark_changed('llh_betas')
+			container.mark_changed('old_sum')
+			container.mark_changed('weights')
 
 
 

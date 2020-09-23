@@ -57,14 +57,14 @@ def main():
     out = SmartArray(out)
 
     start_t = time.time()
-    sum_row(mix, 42.0 + 2j, inp.get(WHERE), out=out.get(WHERE))
+    sum_row(mix, 42.0 + 2j, inp, out=out)
     end_t = time.time()
     print("took %.5f" % (end_t - start_t))
     start_t = time.time()
-    sum_row(mix, 42.0 + 2j, inp.get(WHERE), out=out.get(WHERE))
+    sum_row(mix, 42.0 + 2j, inp, out=out)
     end_t = time.time()
     print("took %.5f" % (end_t - start_t))
-    out.mark_changed(WHERE)
+    out
 
     print(out.get("host"))
 

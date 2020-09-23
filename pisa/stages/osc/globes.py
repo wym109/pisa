@@ -63,9 +63,8 @@ class globes(Stage):
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         expected_params = (
@@ -84,13 +83,10 @@ class globes(Stage):
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ('weights', 'nu_flux')
 
         # what are keys added or altered in the calculation used during apply
-        output_calc_keys = ('prob_e', 'prob_mu', 'prob_nonsterile',)
 
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ('weights',)
 
         # init base class
         super().__init__(
@@ -100,17 +96,10 @@ class globes(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_calc_keys=output_calc_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
-        assert self.calc_mode is not None
-        assert self.output_mode is not None
 
         self.layers = None
         self.osc_params = None
@@ -145,10 +134,10 @@ class globes(Stage):
         self.layers.setElecFrac(1., 1., 1.)
 
         # set the correct data mode
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
         # --- calculate the layers ---
-        if self.calc_mode == 'binned':
+        if self.data.is_map:
             # speed up calculation by adding links
             # as layers don't care about flavour
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
@@ -157,7 +146,7 @@ class globes(Stage):
                                              'nuebar_nc', 'numubar_nc', 'nutaubar_nc'])
 
         for container in self.data:
-            self.layers.calcLayers(container['true_coszen'].get('host'))
+            self.layers.calcLayers(container['true_coszen'])
             container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
             container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
 
@@ -242,7 +231,7 @@ class globes(Stage):
                  ]
         self.globes_calc.SetParametersArr(params)
         # set the correct data mode
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
         for container in self.data:
             # standard oscillations are only applied to charged current events,
@@ -280,20 +269,20 @@ class globes(Stage):
                 container['prob_nonsterile'] = prob_nonsterile
             else:
                 raise Exception('unknown container name: %s' % container.name)
-            container['prob_e'].mark_changed(WHERE)
-            container['prob_mu'].mark_changed(WHERE)
-            container['prob_nonsterile'].mark_changed(WHERE)
+            container.mark_changed('prob_e')
+            container.mark_changed('prob_mu')
+            container.mark_changed('prob_nonsterile')
 
     @profile
     def apply_function(self):
         # update the outputted weights
         for container in self.data:
-            apply_probs(container['nu_flux'].get(WHERE),
-                        container['prob_e'].get(WHERE),
-                        container['prob_mu'].get(WHERE),
-                        container['prob_nonsterile'].get(WHERE),
-                        out=container['weights'].get(WHERE))
-            container['weights'].mark_changed(WHERE)
+            apply_probs(container['nu_flux'],
+                        container['prob_e'],
+                        container['prob_mu'],
+                        container['prob_nonsterile'],
+                        out=container['weights'])
+            container.mark_changed('weights')
 
 
 # vectorized function to apply (flux * prob)

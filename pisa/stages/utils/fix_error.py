@@ -27,9 +27,8 @@ class fix_error(Stage):  # pylint: disable=invalid-name
         output_names=None,
         debug_mode=None,
         error_method=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         expected_params = ()
@@ -37,9 +36,6 @@ class fix_error(Stage):  # pylint: disable=invalid-name
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ("weights", "errors")
-        output_calc_keys = ('frozen_errors',)
-        output_apply_keys = ("weights", 'errors')
         
         # init base class
         super().__init__(
@@ -50,12 +46,8 @@ class fix_error(Stage):  # pylint: disable=invalid-name
             output_names=output_names,
             debug_mode=debug_mode,
             error_method=error_method,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            output_calc_keys=output_calc_keys,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
         assert self.input_mode == "binned"
@@ -63,16 +55,15 @@ class fix_error(Stage):  # pylint: disable=invalid-name
         assert self.output_mode == 'binned'
 
     def setup_function(self):
-        self.data.data_specs = self.input_specs
         for container in self.data:
             container['frozen_errors'] = np.empty((container.size), dtype=FTYPE)
 
     def apply_function(self):
         for container in self.data:
             vectorizer.assign(vals=container['frozen_errors'], out=container['errors'])
-            container['errors'].mark_changed(WHERE)
+            container.mark_changed('errors')
  
     def compute_function(self):
         for container in self.data:
             vectorizer.assign(vals=container["errors"], out=container["frozen_errors"])
-            container['frozen_errors'].mark_changed(WHERE)
+            container.mark_changed('frozen_errors')

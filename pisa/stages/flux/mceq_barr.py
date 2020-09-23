@@ -93,9 +93,8 @@ class mceq_barr(Stage):
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
 
         #
@@ -173,12 +172,9 @@ class mceq_barr(Stage):
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_calc_keys = ()
 
         # what are keys added or altered in the calculation used during apply
-        output_calc_keys = ("nu_flux_nominal", "nu_flux")
         # what keys are added or altered for the outputs during apply
-        output_apply_keys = ("nu_flux_nominal", "nu_flux")
 
         # store args
         self.table_file = table_file
@@ -193,21 +189,14 @@ class mceq_barr(Stage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_calc_keys=input_calc_keys,
-            output_calc_keys=output_calc_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
-        assert self.calc_mode is not None
-        assert self.output_mode is not None
 
     def setup_function(self):
 
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
         #
         # Init arrays
@@ -320,7 +309,7 @@ class mceq_barr(Stage):
                 )
 
             # Tell the smart arrays we've changed the nominal flux values on the host
-            container["nu_flux_nominal"].mark_changed("host")
+            container.mark_changed("nu_flux_nominal").mark_changed("host")
 
 
             #
@@ -359,12 +348,12 @@ class mceq_barr(Stage):
                     )
 
             # Tell the smart arrays we've changed the flux gradient values on the host
-            container["gradients"].mark_changed("host")
+            container.mark_changed("gradients").mark_changed("host")
 
     @profile
     def compute_function(self):
 
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
 
         #
         # Get params
@@ -425,17 +414,17 @@ class mceq_barr(Stage):
         for container in self.data:
 
             apply_sys_vectorized(
-                container["true_energy"].get(WHERE),
-                container["true_coszen"].get(WHERE),
+                container["true_energy"],
+                container["true_coszen"],
                 delta_index,
                 energy_pivot,
-                container["nu_flux_nominal"].get(WHERE),
-                container["gradients"].get(WHERE),
+                container["nu_flux_nominal"],
+                container["gradients"],
                 self.gradient_params,
-                out=container["nu_flux"].get(WHERE),
+                out=container["nu_flux"],
             )
             
-            container["nu_flux"].mark_changed(WHERE)
+            container.mark_changed("nu_flux")
 
 
 @myjit
