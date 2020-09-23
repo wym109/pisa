@@ -29,6 +29,7 @@ class hist(Stage):  # pylint: disable=invalid-name
         calc_mode=None,
         apply_mode=None,
     ):
+        raise NotImplementedError('Needs some care, broken in pisa4')
 
         expected_params = ()
         input_names = ()
@@ -66,7 +67,6 @@ class hist(Stage):  # pylint: disable=invalid-name
         # and not the `apply` method!
 
 
-        raise NotImplementedError('Needs some care, broken in pisa4')
 
         if self.input_mode == 'binned':
             self.data.representation = self.apply_mode

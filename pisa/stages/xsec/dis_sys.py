@@ -72,14 +72,6 @@ class dis_sys(Stage): # pylint: disable=invalid-name
         input_names = ()
         output_names = ()
 
-        # what are the keys used from the inputs during apply
-            'dis_correction_total',
-            'dis_correction_diff',
-        )
-        # what keys are added or altered for the outputs during apply
-            'weights',
-        )
-
         # init base class
         super().__init__(
             data=data,

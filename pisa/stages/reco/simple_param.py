@@ -431,12 +431,6 @@ class simple_param(Stage):
                     )
         output_names = ()
 
-        # what keys are added or altered for the outputs during apply
-                            'reco_energy',
-                            'reco_coszen',
-                            'pid',
-                            )
-
         # init base class
         super().__init__(
             data=data,

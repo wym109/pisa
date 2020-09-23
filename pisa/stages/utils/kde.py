@@ -56,14 +56,6 @@ class kde(Stage):
         input_names = ()
         output_names = ()
 
-        # what are the keys used from the inputs during apply
-                           )
-
-        # what are keys added or altered in the calculation used during apply
-        assert calc_mode is None
-                            )
-
-
         # init base class
         super().__init__(
             data=data,

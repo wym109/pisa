@@ -51,17 +51,11 @@ class resample(Stage):  # pylint: disable=invalid-name
         calc_mode=None,
         apply_mode=None,
     ):
+        raise NotImplementedError('Needs some care, broken in pisa4')
 
         expected_params = ()
         input_names = ()
         output_names = ()
-
-        # what are the keys used from the inputs during apply
-
-        # what are keys added or altered in the calculation used during apply
-        assert calc_mode is None
-        if scale_errors:
-        else:
         
         map_output_key = "weights_resampled"
         map_output_error_key = "errors_resampled"

@@ -65,16 +65,6 @@ class genie_sys(Stage): # pylint: disable=invalid-name
         input_names = ()
         output_names = ()
 
-        # what are the keys used from the inputs during apply
-            'linear_fit_maccqe',
-            'quad_fit_maccqe',
-            'linear_fit_maccres',
-            'quad_fit_maccres',
-        )
-        # what keys are added or altered for the outputs during apply
-            'weights',
-        )
-
         # init base class
         super().__init__(
             data=data,
