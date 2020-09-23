@@ -149,8 +149,6 @@ class simple_signal(Stage):
         # if self.apply_mode is None:
         #    self.apply_mode = MultiDimBinning([OneDimBinning(name='stuff', bin_edges=np.linspace(0.,40.,21))])
 
-        for container in self.data:
-
 
     def apply_function(self):
         '''
@@ -190,7 +188,6 @@ class simple_signal(Stage):
             #
             new_array = lookup_indices(
                 sample=[container['stuff']], binning=self.apply_mode)
-            new_array = new_array
             container["bin_indices"] = new_array
 
             for bin_i in range(self.apply_mode.tot_num_bins):
@@ -200,9 +197,6 @@ class simple_signal(Stage):
         # Re-bin the data
         #
         for container in self.data:
-                'weights', binning=self.apply_mode, averaged=False)
-                'errors', binning=self.apply_mode, averaged=False)
-
 
             #
             #  Recalculate the number of MC events per bin, if the array already exists
@@ -229,7 +223,7 @@ class simple_signal(Stage):
                 #
                 mean_number_of_mc_events = np.mean(nevents_sim)
                 if mean_number_of_mc_events < 1.0:
-                    mean_adjustment = -(1.0-mean_number_of_mc_events) + 1.e-3
+                    mean_adjustment = - (1.0 - mean_number_of_mc_events) + 1.e-3
                 else:
                     mean_adjustment = 0.0
-                container.scalar_data['mean_adjustment']=mean_adjustment
+                container.scalar_data['mean_adjustment'] = mean_adjustment

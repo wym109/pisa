@@ -1,4 +1,3 @@
-
 """
 Stage to transform arrays with weights into actual `histograms`
 that represent event counts
@@ -15,9 +14,7 @@ from pisa.utils import vectorizer
 
 
 class hist(Stage):  # pylint: disable=invalid-name
-    """
-    stage to histogram events
-    """
+    """stage to histogram events"""
     def __init__(
         self,
         data=None,
@@ -28,7 +25,8 @@ class hist(Stage):  # pylint: disable=invalid-name
         error_method=None,
         calc_mode=None,
         apply_mode=None,
-    ):
+        ):
+
         raise NotImplementedError('Needs some care, broken in pisa4')
 
         expected_params = ()
@@ -93,8 +91,4 @@ class hist(Stage):  # pylint: disable=invalid-name
                     )
                 self.data.representation = self.apply_mode
                 if self.error_method in ['sumw2']:
-                        'weights_squared', self.apply_mode, averaged=False
-                    )
-                    vectorizer.sqrt(
-                        vals=container['weights_squared'], out=container['errors']
-                    )
+                    pass

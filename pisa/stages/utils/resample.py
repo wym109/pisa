@@ -85,7 +85,11 @@ class resample(Stage):  # pylint: disable=invalid-name
         
         # TODO: Test for ability to resample in two steps
         # TODO: Update to new test nomenclature
+
+        # ToDo: check logic after pisa4 upgrade
+        if self.calc_mode.is_compat(self.apply_mode):
             self.rs_mode = ResampleMode.UP
+        elif self.apply_mode.is_compat(self.calc_mode):
             self.rs_mode = ResampleMode.DOWN
         else:
             raise ValueError("Binnings are not compatible with each other for resample")
