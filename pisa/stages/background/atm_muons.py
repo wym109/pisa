@@ -65,12 +65,6 @@ class atm_muons(Stage):
         )
         output_names = ()
 
-        # what are the keys used from the inputs during apply
-                          )
-
-        # what keys are added or altered for the outputs during apply
-                            )
-
         # input_names should specify the key that the muon data can be found under in the input file
         if input_names is None :
             input_names = ("muons",)
@@ -136,7 +130,7 @@ class atm_muons(Stage):
                         atm_muon_scale,
                         out=self.data[self.input_names[0]]['weights'],
                        )
-        self.data[self.input_names[0))['weights')
+        self.data[self.input_names[0]].mark_changed('weights')
 
 
 

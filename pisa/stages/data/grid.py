@@ -65,7 +65,7 @@ class grid(Stage):
         for name in self.output_names:
 
             # Create the container
-            container = Container(name)
+            container = Container(name, self.calc_mode)
 
             # Determine flavor
             nubar = -1 if 'bar' in name else 1
@@ -77,8 +77,10 @@ class grid(Stage):
                 flav = 2
 
             # Create arrays
+            mesh = self.calc_mode.meshgrid(entity=self.entity, attach_units=False)
             size = mesh[0].size
-                container.add_array_data(var_name, var_vals.flatten().astype(FTYPE))
+            for var_name, var_vals in zip(self.calc_mode.names, mesh):
+                container[var_name] = var_vals.flatten().astype(FTYPE)
 
             # Add useful info
             container.set_aux_data('nubar', nubar)

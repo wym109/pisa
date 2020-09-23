@@ -86,12 +86,7 @@ class simple_data_loader(Stage):
         # args so nothing external will inadvertently try to change
         # their values
         expected_params = ()
-        # created as ones if not already present
-            'initial_weights',
-        )
-        # copy of initial weights, to be modified by later stages
-            'weights',
-        )
+
         # init base class
         super().__init__(
             data=data,
@@ -104,11 +99,6 @@ class simple_data_loader(Stage):
             apply_mode=apply_mode,
         )
 
-        # doesn't calculate anything
-            raise ValueError(
-                'There is nothing to calculate for this event loading service.'
-                ' Hence, `calc_mode` must not be set.'
-            )
         # check output names
         if len(self.output_names) != len(set(self.output_names)):
             raise ValueError(
@@ -224,10 +214,6 @@ class simple_data_loader(Stage):
             raise ValueError(
                 'No containers created during data loading for some reason.'
             )
-
-        # test
-        if self.output_mode == 'binned':
-            for container in self.data:
 
 
     def setup_function(self):

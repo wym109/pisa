@@ -39,10 +39,7 @@ class csv_data_hist(Stage):
         self.events_file = events_file
 
         expected_params = ()
-                           )
-        # copy of initial weights, to be modified by later stages
-            'weights',
-        )
+
         # init base class
         super().__init__(
             data=data,

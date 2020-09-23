@@ -58,11 +58,6 @@ class csv_loader(Stage):
             apply_mode=apply_mode,
         )
 
-        # doesn't calculate anything
-            raise ValueError(
-                'There is nothing to calculate for this event loading service.'
-                ' Hence, `calc_mode` must not be set.'
-            )
         # check output names
         if len(self.output_names) != len(set(self.output_names)):
             raise ValueError(
@@ -117,10 +112,6 @@ class csv_loader(Stage):
             raise ValueError(
                 'No containers created during data loading for some reason.'
             )
-
-        # test
-        if self.output_mode == 'binned':
-            for container in self.data:
 
     @profile
     def apply_function(self):
