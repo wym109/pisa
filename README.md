@@ -1,4 +1,7 @@
 # PISA
+
+
+
 [Introduction](pisa/README.md) |
 [Installation](INSTALL.md) |
 [Documentation](http://icecube.wisc.edu/%7Epeller/pisa_docs/index.html) |
@@ -6,8 +9,6 @@
 [License](LICENSE) |
 [Contributors](CONTRIBUTORS.md) |
 [Others' work](EXTERNAL_ATTRIBUTION.md)
-
-:warning: **PISA master branch now uses python 3!** :warning:
 
 PISA (PINGU Simulation and Analysis) is software written to analyze the results (or expected results) of an experiment based on Monte Carlo simulation.
 
