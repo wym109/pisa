@@ -16,6 +16,7 @@ import numpy as np
 
 from pisa import FTYPE, TARGET
 from pisa.core.stage import Stage
+from pisa.core.binning import MultiDimBinning
 from pisa.utils.log import logging
 from pisa.utils.numba_tools import WHERE
 from pisa.utils import vectorizer
@@ -101,7 +102,7 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
             expected_params = self.hypersurface_param_names
 
         # -- Initialize base class -- #
-        super(hypersurfaces, self).__init__(
+        super().__init__(
             data=data,
             params=params,
             expected_params=expected_params,
@@ -115,7 +116,7 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
 
         # -- Only allowed/implemented modes -- #
 
-        assert self.calc_mode == "binned"
+        assert isinstance(self.calc_mode, MultiDimBinning)
 
         self.links = ast.literal_eval(links)
         self.warning_issued = False # don't warn more than once about empty bins

@@ -111,7 +111,7 @@ class Stage(BaseStage):
     @profile
     def compute(self):
         
-        if len(self.params) == 0 and len(self.output_calc_keys) == 0:
+        if len(self.params) == 0:
             return
 
         # simplest caching algorithm: don't compute if params didn't change

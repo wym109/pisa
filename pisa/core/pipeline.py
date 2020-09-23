@@ -322,7 +322,7 @@ class Pipeline(object):
 
         if isinstance(output_key, tuple):
             assert len(output_key) == 2
-            outputs = self.data.get_mapset(output_key[0], errors=output_key[1])
+            outputs = self.data.get_mapset(output_key[0], error=output_key[1])
         else:
             outputs = self.data.get_mapset(output_key)
 

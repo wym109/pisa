@@ -9,6 +9,7 @@ import numpy as np
 
 from pisa import FTYPE
 from pisa.core.stage import Stage
+from pisa.core.translation import histogram
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 
@@ -27,7 +28,6 @@ class hist(Stage):  # pylint: disable=invalid-name
         apply_mode=None,
         ):
 
-        raise NotImplementedError('Needs some care, broken in pisa4')
 
         expected_params = ()
         input_names = ()
@@ -46,27 +46,14 @@ class hist(Stage):  # pylint: disable=invalid-name
             apply_mode=apply_mode,
         )
 
-        assert self.output_mode == 'binned'
-
-    def setup_function(self):
-        # create the variables to be filled in `apply`
-        if self.error_method in ['sumw2']:
-            for container in self.data:
-                container['weights_squared'] = np.empty((container.size), dtype=FTYPE)
-            self.data.representation = self.apply_mode
-            for container in self.data:
-                container['errors'] = np.empty((container.size), dtype=FTYPE)
 
     @profile
-    def apply(self):
-        # this is special, we want the actual event weights in the histo
-        # therefor we're overwritting the apply function
-        # normally in a stage you would implement the `apply_function` method
-        # and not the `apply` method!
+    def apply_function(self):
 
+        self.data.representation = self.calc_mode
 
-
-        if self.input_mode == 'binned':
+        if self.calc_mode == 'binned':
+            raise NotImplementedError('Needs some care, broken in pisa4')
             self.data.representation = self.apply_mode
             for container in self.data:
                 # calcualte errors
@@ -80,15 +67,22 @@ class hist(Stage):  # pylint: disable=invalid-name
                         vals=container['weights_squared'], out=container['errors']
                     )
 
-        elif self.input_mode == 'events':
+        elif self.calc_mode == 'events':
             for container in self.data:
                 # calcualte errors
-                if self.error_method in ['sumw2']:
-                    vectorizer.pow(
-                        vals=container['weights'],
-                        pwr=2,
-                        out=container['weights_squared'],
-                    )
-                self.data.representation = self.apply_mode
-                if self.error_method in ['sumw2']:
-                    pass
+
+                container.representation = self.calc_mode
+                sample = [container[name] for name in self.apply_mode.names]
+                weights = container['weights']
+
+                hist = histogram(sample, weights, self.apply_mode, averaged=False)
+
+                if self.error_method == 'sumw2':
+                    sumw2 = histogram(sample, np.square(weights), self.apply_mode, averaged=False)
+
+                container.representation = self.apply_mode
+                
+                container['weights'] = hist
+
+                if self.error_method == 'sumw2':
+                    container['errors'] = np.sqrt(sumw2)
