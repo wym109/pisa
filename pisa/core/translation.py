@@ -107,7 +107,7 @@ def histogram(sample, weights, binning, averaged, apply_weights=True):
     flat_hist = histogram_np(sample, weights, binning, apply_weights=True)
 
     if averaged:
-        flat_hist_counts = histogram_np(old_sample, weights, new_binning, apply_weights=False)
+        flat_hist_counts = histogram_np(sample, weights, binning, apply_weights=False)
 
         with np.errstate(divide='ignore', invalid='ignore'):
             flat_hist /= flat_hist_counts

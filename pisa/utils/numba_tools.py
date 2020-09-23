@@ -181,10 +181,10 @@ def conjugate_transpose_guf(A, out):
 
 def test_conjugate_transpose():
     """Unit tests of `conjugate_transpose` and `conjugate_transpose_guf`"""
-    A = SmartArray(
+    A = numba.cuda.copy_to_device(
         (np.linspace(1, 12, 12) + 1j * np.linspace(21, 32, 12)).reshape(4, 3).astype(CX)
     )
-    B = SmartArray(np.ones((3, 4), dtype=CX))
+    B = numba.cuda.copy_to_device(np.ones((3, 4), dtype=CX))
 
     conjugate_transpose_guf(A.get(WHERE), B.get(WHERE))
     B.mark_changed(WHERE)
@@ -193,8 +193,8 @@ def test_conjugate_transpose():
     ref = A.get().conj().T
     assert np.allclose(test, ref, **ALLCLOSE_KW), f"test:\n{test}\n!= ref:\n{ref}"
 
-    A = SmartArray(np.linspace(1, 12, 12, dtype=FX).reshape(3, 4))
-    B = SmartArray(np.ones((4, 3), dtype=FX))
+    A = numba.cuda.copy_to_device(np.linspace(1, 12, 12, dtype=FX).reshape(3, 4))
+    B = numba.cuda.copy_to_device(np.ones((4, 3), dtype=FX))
 
     conjugate_transpose_guf(A.get(WHERE), B.get(WHERE))
     B.mark_changed(WHERE)
@@ -236,10 +236,10 @@ def conjugate_guf(A, out):
 
 def test_conjugate():
     """Unit tests of `conjugate` and `conjugate_guf`"""
-    A = SmartArray(
+    A = numba.cuda.copy_to_device(
         (np.linspace(1, 12, 12) + 1j * np.linspace(21, 32, 12)).reshape(4, 3).astype(CX)
     )
-    B = SmartArray(np.ones((4, 3), dtype=CX))
+    B = numba.cuda.copy_to_device(np.ones((4, 3), dtype=CX))
 
     conjugate_guf(A.get(WHERE), B.get(WHERE))
     B.mark_changed(WHERE)
@@ -249,8 +249,8 @@ def test_conjugate():
 
     assert np.allclose(test, ref, **ALLCLOSE_KW), f"test:\n{test}\n!= ref:\n{ref}"
 
-    A = SmartArray(np.linspace(1, 12, 12, dtype=FX).reshape(3, 4))
-    B = SmartArray(np.ones((3, 4), dtype=FX))
+    A = numba.cuda.copy_to_device(np.linspace(1, 12, 12, dtype=FX).reshape(3, 4))
+    B = numba.cuda.copy_to_device(np.ones((3, 4), dtype=FX))
 
     conjugate_guf(A.get(WHERE), B.get(WHERE))
     B.mark_changed(WHERE)
@@ -291,9 +291,9 @@ def matrix_dot_matrix_guf(A, B, out):
 
 def test_matrix_dot_matrix():
     """Unit tests of `matrix_dot_matrix` and `matrix_dot_matrix_guf`"""
-    A = SmartArray(np.linspace(1, 12, 12, dtype=FTYPE).reshape(3, 4))
-    B = SmartArray(np.linspace(1, 12, 12, dtype=FTYPE).reshape(4, 3))
-    C = SmartArray(np.ones((3, 3), dtype=FTYPE))
+    A = numba.cuda.copy_to_device(np.linspace(1, 12, 12, dtype=FTYPE).reshape(3, 4))
+    B = numba.cuda.copy_to_device(np.linspace(1, 12, 12, dtype=FTYPE).reshape(4, 3))
+    C = numba.cuda.copy_to_device(np.ones((3, 3), dtype=FTYPE))
 
     matrix_dot_matrix_guf(A.get(WHERE), B.get(WHERE), C.get(WHERE))
     C.mark_changed(WHERE)
@@ -333,9 +333,9 @@ def matrix_dot_vector_guf(A, B, out):
 
 def test_matrix_dot_vector():
     """Unit tests of `matrix_dot_vector` and `matrix_dot_vector_guf`"""
-    A = SmartArray(np.linspace(1, 12, 12, dtype=FTYPE).reshape(4, 3))
-    v = SmartArray(np.linspace(1, 3, 3, dtype=FTYPE))
-    w = SmartArray(np.ones(4, dtype=FTYPE))
+    A = numba.cuda.copy_to_device(np.linspace(1, 12, 12, dtype=FTYPE).reshape(4, 3))
+    v = numba.cuda.copy_to_device(np.linspace(1, 3, 3, dtype=FTYPE))
+    w = numba.cuda.copy_to_device(np.ones(4, dtype=FTYPE))
 
     matrix_dot_vector_guf(A.get(WHERE), v.get(WHERE), w.get(WHERE))
     w.mark_changed(WHERE)
@@ -372,7 +372,7 @@ def clear_matrix_guf(dummy, out):  # pylint: disable=unused-argument
 
 def test_clear_matrix():
     """Unit tests of `clear_matrix` and `clear_matrix_guf`"""
-    A = SmartArray(np.ones((4, 3), dtype=FTYPE))
+    A = numba.cuda.copy_to_device(np.ones((4, 3), dtype=FTYPE))
 
     clear_matrix_guf(A.get(WHERE), A.get(WHERE))
     A.mark_changed(WHERE)
@@ -409,8 +409,8 @@ def copy_matrix_guf(A, out):
 
 def test_copy_matrix():
     """Unit tests of `copy_matrix` and `copy_matrix_guf`"""
-    A = SmartArray(np.ones((3, 3), dtype=FTYPE))
-    B = SmartArray(np.zeros((3, 3), dtype=FTYPE))
+    A = numba.cuda.copy_to_device(np.ones((3, 3), dtype=FTYPE))
+    B = numba.cuda.copy_to_device(np.zeros((3, 3), dtype=FTYPE))
 
     copy_matrix_guf(A.get(WHERE), B.get(WHERE))
     B.mark_changed(WHERE)

@@ -27,6 +27,7 @@ from pisa.core.param import ParamSet
 from pisa.core.base_stage import BaseStage
 from pisa.core.stage import Stage
 from pisa.core.container import ContainerSet
+from pisa.core.binning import MultiDimBinning
 from pisa.utils.config_parser import PISAConfigParser, parse_pipeline_config
 from pisa.utils.fileio import mkdir
 from pisa.utils.hash import hash_obj
@@ -174,8 +175,9 @@ class Pipeline(object):
             try:
                 name, settings = item
                 
-                if name is 'pipeline':
-                    continue
+                if isinstance(name, str):
+                    if name == 'pipeline':
+                        continue
 
                 stage_name, service_name = name
 
@@ -587,11 +589,6 @@ def parse_args():
         help="""Store all intermediate outputs, not just the final stage's
         outputs.""",
     )
-    parser.add_argument(
-        "--transforms",
-        action="store_true",
-        help="""Store all transforms (for stages that use transforms).""",
-    )
     # TODO: optionally store the transform sets from each stage
     # parser.add_argument(
     #    '-T', '--transform-file', metavar='FILE', type=str,
@@ -731,8 +728,6 @@ def main(return_outputs=False):
         fbase = os.path.join(args.outdir, stg_svc)
         if args.intermediate or stage == pipeline[indices][-1]:
             stage.outputs.to_json(fbase + "__output.json.bz2")
-        if args.transforms and stage.use_transforms:
-            stage.transforms.to_json(fbase + "__transforms.json.bz2")
 
         # also only plot if args intermediate or last stage
         if args.intermediate or stage == pipeline[indices][-1]:
@@ -753,8 +748,6 @@ def main(return_outputs=False):
                     mapset_name=stg_svc,
                     errors=True,
                 )
-            elif isinstance(stage.outputs, (MapSet, TransformSet)):
-                outputs = stage.outputs
 
             try:
                 for fmt, enabled in formats.items():
