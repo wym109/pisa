@@ -61,8 +61,6 @@ class honda_ip(Stage):
             apply_mode=apply_mode,
         )
 
-        assert self.input_mode is None
-
     def setup_function(self):
 
         self.flux_table = load_2d_table(self.params.flux_table.value)

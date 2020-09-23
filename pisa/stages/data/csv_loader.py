@@ -95,8 +95,8 @@ class csv_loader(Stage):
             events = raw_data[mask]
 
             container['weighted_aeff'] = events['weight'].values.astype(FTYPE)
-            container['weights'] = np.ones(container.array_length, dtype=FTYPE)
-            container['initial_weights'] = np.ones(container.array_length, dtype=FTYPE)
+            container['weights'] = np.ones(container.size, dtype=FTYPE)
+            container['initial_weights'] = np.ones(container.size, dtype=FTYPE)
             container['true_energy'] = events['true_energy'].values.astype(FTYPE)
             container['true_coszen'] = events['true_coszen'].values.astype(FTYPE)
             container['reco_energy'] = events['reco_energy'].values.astype(FTYPE)

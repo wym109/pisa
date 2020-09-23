@@ -74,10 +74,6 @@ class aeff(Stage):  # pylint: disable=invalid-name
             apply_mode=apply_mode,
         )
 
-        assert self.calc_mode is None
-
-        # right now this stage has no calc mode, as it just applies scales
-        # but it could if for example some smoothing will be performed!
 
     @profile
     def apply_function(self):
