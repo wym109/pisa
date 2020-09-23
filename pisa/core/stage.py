@@ -7,7 +7,6 @@ functionality is built-in.
 from __future__ import absolute_import, division
 
 from collections import OrderedDict
-from pisa.utils.smartarray import SmartArray
 
 from pisa.core.base_stage import BaseStage
 from pisa.core.binning import MultiDimBinning

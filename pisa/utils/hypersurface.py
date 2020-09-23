@@ -1588,8 +1588,6 @@ class HypersurfaceParam(object):
         when fitting).
         '''
 
-        # TODO properly use SmartArrays
-
         # Create an array to file with this contorubtion
         this_out = np.full_like(out, np.NaN, dtype=FTYPE)
 

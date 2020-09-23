@@ -7,7 +7,7 @@ from __future__ import print_function
 import time
 
 import numpy as np
-from numba import guvectorize, SmartArray
+from numba import guvectorize
 
 from pisa import TARGET
 from pisa.utils.numba_tools import (
@@ -52,9 +52,6 @@ def main():
     n = 1000000
     inp = np.arange(3 * n, dtype=np.int32).reshape(n, 3)
     out = np.ones((n), dtype=np.int32)
-
-    inp = SmartArray(inp)
-    out = SmartArray(out)
 
     start_t = time.time()
     sum_row(mix, 42.0 + 2j, inp, out=out)

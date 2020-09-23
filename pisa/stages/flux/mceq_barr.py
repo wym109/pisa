@@ -233,7 +233,6 @@ class mceq_barr(Stage):
 
         # Also create an array container to hold the gradient parameter values
         # Only want this once, e.g. not once per container
-        # TODO More efficient on GPUs if I use SmartArray?, so can support GPUs
         self.gradient_params = np.empty(gradient_params_shape, dtype=FTYPE)
 
         #

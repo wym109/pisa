@@ -17,7 +17,6 @@ from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 from pisa.core import translation
-from pisa.utils.smartarray import SmartArray
 
 from pisa.utils.log import logging, set_verbosity
 
@@ -130,14 +129,10 @@ class resample(Stage):  # pylint: disable=invalid-name
                     out=container["variances"],
                 )
 
-        input_binvols = SmartArray(
-        )
-        output_binvols = SmartArray(
-            self.apply_mode.weighted_bin_volumes(attach_units=False).ravel()
-        )
+        input_binvols = None #?
+        output_binvols = self.apply_mode.weighted_bin_volumes(attach_units=False).ravel()
         
         for container in self.data:
-            # we want these to be SmartArrays, so no ``
             weights_flat_hist = container["weights"]
             if self.scale_errors:
                 vars_flat_hist = container["variances"]
@@ -146,7 +141,7 @@ class resample(Stage):  # pylint: disable=invalid-name
                 # The `unroll_binning` function returns the midpoints of the bins in the
                 # dimension `name`.
                 fine_gridpoints = [
-                    SmartArray(container.unroll_binning(name, self.apply_mode))
+                    container.unroll_binning(name, self.apply_mode)
                     for name in self.apply_mode.names
                 ]
                 # We look up at which bin index of the input binning the midpoints of

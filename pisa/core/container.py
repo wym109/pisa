@@ -3,8 +3,6 @@ Class to hold generic data in container.
 he data can be unbinned or binned or scalar, while
 translation methods between such different representations
 are provided.
-
-The data lives in SmartArrays on both CPU and GPU
 """
 
 from __future__ import absolute_import, print_function
@@ -15,7 +13,6 @@ import copy
 from itertools import chain
 
 import numpy as np
-from pisa.utils.smartarray import SmartArray
 
 from pisa import FTYPE
 from pisa.core.binning import OneDimBinning, MultiDimBinning

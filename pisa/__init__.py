@@ -123,9 +123,6 @@ if 'OMP_NUM_THREADS' in os.environ:
     assert OMP_NUM_THREADS >= 1
 
 
-# Get SmartArray DeprecationWarning out of the way silently
-warnings.filterwarnings("ignore", category=NumbaDeprecationWarning)
-
 NUMBA_CUDA_AVAIL = False
 def dummy_func(x):
     """Decorate to to see if Numba actually works"""
