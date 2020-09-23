@@ -16,7 +16,7 @@ from pisa.utils.numba_tools import WHERE, myjit
 from pisa.utils.resources import find_resource
 
 
-class 2nu(Stage):
+class two_nu_osc(Stage):
     """
     two neutrino osc PISA Pi class
 
@@ -49,17 +49,9 @@ class 2nu(Stage):
         input_names = ()
         output_names = ()
 
-        # what are the keys used from the inputs during apply
-                            'nu_flux',
-                            'true_energy',
-                            'true_coszen',
-                           )
-
-        # what keys are added or altered for the outputs during apply
-                      )
 
         # init base class
-        super(2nu, self).__init__(
+        super(two_nu_osc, self).__init__(
             data=data,
             params=params,
             expected_params=expected_params,

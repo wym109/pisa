@@ -82,14 +82,6 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
         input_names = ()
         output_names = ()
 
-        # -- Which keys are added or altered for the outputs during `apply` -- #
-
-        if propagate_uncertainty:
-        else:
-
-        if error_method == "sumw2":
-        else:
-
         # -- Load hypersurfaces -- #
 
         # Store args

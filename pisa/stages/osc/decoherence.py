@@ -302,15 +302,6 @@ class decoherence(Stage):
         input_names = ()
         output_names = ()
 
-        # what are the keys used from the inputs during apply
-                            'sys_flux',
-                           )
-        # what are keys added or altered in the calculation used during apply
-                            'prob_mu',
-                           )
-        # what keys are added or altered for the outputs during apply
-                      )
-
         # init base class
         super(decoherence, self).__init__(data=data,
                                        params=params,

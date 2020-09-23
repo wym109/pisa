@@ -165,15 +165,6 @@ class nusquids(Stage):
         input_names = ()
         output_names = ()
 
-        # what are the keys used from the inputs during apply
-                            'nu_flux',
-                           )
-        # what are keys added or altered in the calculation used during apply
-                            'prob_mu',
-                           )
-        # what keys are added or altered for the outputs during apply
-                      )
-
         # init base class
         super().__init__(
             data=data,
