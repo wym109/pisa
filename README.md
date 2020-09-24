@@ -18,7 +18,8 @@ However, PISA's methods apply equally well to high-MC situations, and PISA also 
 
 If you use PISA, please cite our publication (e-Print available here: https://arxiv.org/abs/1803.05390):
 ```
-"Computational Techniques for the Analysis of Small Signals in High-Statistics Neutrino Oscillation Experiments"
+"Computational Techniques for the Analysis of Small Signals
+in High-Statistics Neutrino Oscillation Experiments"
 IceCube Collaboration - M.G. Aartsen et al. (Mar 14, 2018)
 Published in: Nucl.Instrum.Meth.A 977 (2020) 164332
 ```
@@ -35,7 +36,7 @@ cd pisa
 pip install -e .
 ```
 
-For detailed isntallation instructions and common issues see [Installation](INSTALL.md)
+For detailed installation instructions and common issues see [Installation](INSTALL.md)
 
 ## Minimal Example
 
@@ -47,7 +48,7 @@ from pisa.core import Pipeline
 import matplotlib.pyplot as plt
 ```
 
-    << PISA_FTYPE env var is defined as: "single"; PISA is running in single precision (FP32) mode; numba is running on CPU (single core) >>
+    << PISA is running in single precision (FP32) mode; numba is running on CPU (single core) >>
 
 
 Instantiate a `Pipeline` or multiple pipelines in a `DistributionMaker` using a PISA config file
@@ -64,7 +65,7 @@ Run with nominal settings
 template_maker.run()
 ```
 
-Get oscillation probaboilities $P_{\nu_\mu\to\nu_\mu}$
+Get oscillation probaboilities <img src="https://render.githubusercontent.com/render/math?math=P_{\nu_\mu\to\nu_\mu}">
 
 
 ```python
@@ -82,5 +83,5 @@ outputs['nutau_cc'].plot(ax=axes[2], cmap='RdYlBu_r', vmin=0, vmax=1);
 ```
 
 
-![png](output_10_0.png)
+![png](README_files/README_10_0.png)
 

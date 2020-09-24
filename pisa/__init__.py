@@ -157,7 +157,7 @@ FLOAT32_STRINGS = ['single', 'float32', 'fp32', '32', 'f4']
 FLOAT64_STRINGS = ['double', 'float64', 'fp64', '64', 'f8']
 if 'PISA_FTYPE' in os.environ:
     PISA_FTYPE = os.environ['PISA_FTYPE']
-    ini_msgs.append('PISA_FTYPE env var is defined as: "%s"' % PISA_FTYPE)
+    #ini_msgs.append('PISA_FTYPE env var is defined as: "%s"' % PISA_FTYPE)
     if PISA_FTYPE.strip().lower() in FLOAT32_STRINGS:
         FTYPE = np.float32
         CTYPE = np.complex64
