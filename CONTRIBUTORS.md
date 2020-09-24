@@ -30,5 +30,5 @@ Individual contributors, whether or not from The IceCube Collaboration, are list
 * Jan Weldert
 * Steven Wren
 
-Anyone who has contributed to the PISA project can file an issue, open a PR, or file an issue to request to be listed here.
+Anyone who has contributed to the PISA project can file an issue, open a PR to request to be listed here.
 See also [EXTERNAL_ATTRIBUTION.md](EXTERNAL_ATTRIBUTION.md).
