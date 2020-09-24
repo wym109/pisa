@@ -30,14 +30,6 @@ Loading muons from iceCube datareleases
 
 Loading MC from iceCube datareleases
 
-### events_to_data
-
-Description missing
-
 ### grid
-
-Description missing
-
-### sample
 
 Description missing
