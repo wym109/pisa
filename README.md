@@ -51,28 +51,28 @@ import matplotlib.pyplot as plt
     << PISA is running in single precision (FP32) mode; numba is running on CPU (single core) >>
 
 
-Instantiate a `Pipeline` or multiple pipelines in a `DistributionMaker` using a PISA config file
+Instantiate a `Pipeline` or multiple pipelines in a `DistributionMaker` using PISA config files
 
 
 ```python
 template_maker = Pipeline("settings/pipeline/osc_example.cfg")
 ```
 
-Run with nominal settings
+Run the pipleine with nominal settings
 
 
 ```python
 template_maker.run()
 ```
 
-Get oscillation probaboilities <img src="https://render.githubusercontent.com/render/math?math=P_{\nu_\mu\to\nu_\mu}">
+Get the oscillation probabilities <img src="https://render.githubusercontent.com/render/math?math=P_{\nu_\mu\to\nu_\mu}">
 
 
 ```python
 outputs = template_maker.data.get_mapset('prob_mu')
 ```
 
-Plot
+Plot some results
 
 
 ```python
