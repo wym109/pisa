@@ -22,25 +22,3 @@ If you use PISA, please cite our publication:
 "Computational Techniques for the Analysis of Small Signals in High-Statistics Neutrino Oscillation Experiments"
 IceCube Collaboration - M.G. Aartsen et al. (Mar 14, 2018)
 Published in: Nucl.Instrum.Meth.A 977 (2020) 164332 - e-Print: https://arxiv.org/abs/1803.05390
-
-## Directory listing
-
-| File/directory            | Description
-| ------------------------- | -----------
-| `docs/`                   | Sphinx auto-generated documentation
-| `images/`                 | Images to include in documentation
-| `pisa/`                   | Source code
-| `pisa_examples/`          | Example resources for PISA from data to settings, notebooks with examples of how to use PISA, etc.
-| `pisa_tests/`             | Scripts for running physics and unit tests
-| `.gitattributes`          | Used with `versioneer`
-| `.gitignore`              | GIT ignores files matching these specifications
-| `CONTRIBUTORS.md`         | Listing of individuals who contributed code to PISA
-| `EXTERNAL_ATTRIBUTION.md` | Authors, references, and/or copyrights on external code used within PISA
-| `INSTALL.md`              | How to install PISA
-| `LICENSE`                 | Apache 2.0 license; applicable unless noted otherwise
-| `MANIFEST.in`             | Extra files to distribute with PISA package
-| `README.md`               | Brief overview of PISA
-| `pylintrc`                | PISA coding conventions for use with pylint
-| `setup.cfg`               | Setup file for `versioneer`
-| `setup.py`                | Python setup file, allowing e.g. `pip` installation
-| `versioneer.py`           | Automatic versioning
