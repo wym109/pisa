@@ -18,30 +18,17 @@ This service creates a set of toy MC neutrino events, based on an arbitrary choi
 
 This service creates a simple, 1D dataset consisting of a gaussian signal on top of a uniform background. Useful to make simple checks on minimization and likelihood implementations. `super_simple_pipeline.cfg` provides an example pipeline that ca be used to run this service
 
-
----
-
-## Older services
-
-### data
-
-Load data events and just histogram them (no scaling or systematics applied)
-
-### icc
-
-Load data events to be used to model the atmospheric muon background. The events are scaled by `atm_muon_scale` and `livetime`, and additional uncertainties are provided given the finite statistics and also an alternative icc definition to generate a shape uncertainty term.
-
 ### csv_data_hist
 
-Description missing
+Loading data from iceCube datareleases
 
 ### csv_icc_hist
 
-Description missing
+Loading muons from iceCube datareleases
 
 ### csv_loader
 
-Description missing
+Loading MC from iceCube datareleases
 
 ### events_to_data
 
