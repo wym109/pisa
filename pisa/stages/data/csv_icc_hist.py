@@ -16,7 +16,7 @@ from pisa.core.container import Container
 
 class csv_icc_hist(Stage):
     """
-    CSV file loader PISA Pi class
+    CSV file loader PISA class
 
     Parameters
     ----------
@@ -56,9 +56,6 @@ class csv_icc_hist(Stage):
             apply_mode=apply_mode,
         )
 
-        assert self.output_mode == 'binned'
-        assert self.error_method == 'fixed'
-
     def setup_function(self):
         events = pd.read_csv(self.events_file)
 
@@ -66,7 +63,7 @@ class csv_icc_hist(Stage):
         container.data_specs = 'events'
 
         container['count'] = events['count'].values.astype(FTYPE)
-        container['weights'] = np.ones(container.array_length, dtype=FTYPE)
+        container['weights'] = np.ones(container.size, dtype=FTYPE)
         container['errors'] = events['abs_uncert'].values.astype(FTYPE)
         container['reco_energy'] = events['reco_energy'].values.astype(FTYPE)
         container['reco_coszen'] = events['reco_coszen'].values.astype(FTYPE)
@@ -80,12 +77,9 @@ class csv_icc_hist(Stage):
                 'No containers created during data loading for some reason.'
             )
 
-        # let's convert that into the right binning
 
-    @profile
     def apply_function(self):
         scale = self.params.atm_muon_scale.m_as('dimensionless')
+
         for container in self.data:
-            vectorizer.scale(
-                vals=container['count'], scale=scale, out=container['weights']
-            )
+            container['weights'] = container['count'] * scale
