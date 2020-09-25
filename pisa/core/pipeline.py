@@ -24,7 +24,6 @@ from pisa import ureg
 from pisa.core.events import Data
 from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
-from pisa.core.base_stage import BaseStage
 from pisa.core.stage import Stage
 from pisa.core.container import ContainerSet
 from pisa.core.binning import MultiDimBinning
@@ -215,12 +214,7 @@ class Pipeline(object):
                     )
                     raise
 
-                stage = isinstance(service, Stage)
-
-                if not (stage):
-                    logging.debug("is BaseStage? %s", isinstance(service, BaseStage))
-                    logging.debug("is Stage? %s", isinstance(service, Stage))
-
+                if not isinstance(service, Stage):
                     raise TypeError(
                         'Trying to create service "%s" for stage #%d (%s),'
                         " but object %s instantiated from class %s is not a"
@@ -236,7 +230,6 @@ class Pipeline(object):
                     )
 
                 service.data = self.data
-                # add events object
 
                 # run setup on service
                 service.setup()
@@ -260,46 +253,6 @@ class Pipeline(object):
         previous_stage = None
         for stage in stages:
             stage.select_params(param_selections, error_on_missing=False)
-            if previous_stage is not None:
-                prev_has_binning = (
-                    hasattr(previous_stage, "output_binning")
-                    and previous_stage.output_binning is not None
-                )
-                this_has_binning = (
-                    hasattr(stage, "input_binning") and stage.input_binning is not None
-                )
-                if this_has_binning != prev_has_binning:
-                    raise ValueError(
-                        'hasattr(%s, "output_binning") is %s but'
-                        ' hasattr(%s, "input_binning") is %s.'
-                        % (
-                            previous_stage.stage_name,
-                            prev_has_binning,
-                            stage.stage_name,
-                            this_has_binning,
-                        )
-                    )
-                if this_has_binning:
-                    is_compat = stage.input_binning.is_compat(
-                        previous_stage.output_binning
-                    )
-                    if not is_compat:
-                        logging.error(
-                            "Stage %s output binning: %s",
-                            previous_stage.stage_name,
-                            previous_stage.output_binning,
-                        )
-                        logging.error(
-                            "Stage %s input binning: %s",
-                            stage.stage_name,
-                            stage.input_binning,
-                        )
-                        raise ValueError(
-                            "%s stage's output binning is incompatible with"
-                            " %s stage's input binning."
-                            % (previous_stage.stage_name, stage.stage_name)
-                        )
-            previous_stage = stage
 
         self._stages = stages
 
@@ -512,6 +465,9 @@ def test_Pipeline():
         #current_mat = new_mat
 
 
+
+# ----- Most of this below cang go (?) ---
+
 def parse_args():
     """Parse command line arguments if `pipeline.py` is called as a script."""
     parser = ArgumentParser(
@@ -589,11 +545,6 @@ def parse_args():
         help="""Store all intermediate outputs, not just the final stage's
         outputs.""",
     )
-    # TODO: optionally store the transform sets from each stage
-    # parser.add_argument(
-    #    '-T', '--transform-file', metavar='FILE', type=str,
-    #    help='''File into which to store transform(s) from the pipeline.'''
-    # )
     parser.add_argument("--pdf", action="store_true", help="""Produce pdf plot(s).""")
     parser.add_argument("--png", action="store_true", help="""Produce png plot(s).""")
     parser.add_argument(
