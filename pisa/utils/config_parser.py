@@ -222,7 +222,8 @@ default selection they must be separated by commas.
 from __future__ import absolute_import, division
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from collections import OrderedDict
+from collections.abc import Mapping
+from collections import Counter, OrderedDict
 from io import StringIO
 from os.path import abspath, expanduser, expandvars, isfile, join
 import re
@@ -792,6 +793,242 @@ def parse_pipeline_config(config):
 
     return stage_dicts
 
+def parse_minimizer_config(config):
+    """Parse a minimizer configuration. Note that some of
+    the fields which are passed on to the corresponding
+    `scipy.optimize` interface might have to be integers.
+    This needs to be ensured outside of here.
+
+    Parameters
+    ----------
+    config : str, OrderedDict, or ConfigParser
+
+    Returns
+    -------
+    settings_dict : OrderedDict
+
+    """
+    if isinstance(config, str):
+        config = from_file(config)
+    elif isinstance(config, PISAConfigParser):
+        pass
+    elif isinstance(config, Mapping):
+        return config
+    else:
+        raise TypeError(
+            '`config` must either be a string, PISAConfigParser, or OrderedDict.'
+            ' Got %s instead.' % type(config)
+        )
+
+    if not config.has_section('method'):
+        raise NoSectionError(
+            "Could not find 'method'. Only found sections: %s"
+            % config.sections()
+        )
+
+    if not config.has_section('options'):
+        raise NoSectionError(
+            "Could not find 'options'. Only found sections: %s"
+            % config.sections()
+        )
+
+    settings_dict = OrderedDict()
+    solver = config['method']['name']
+    settings_dict['method'] = solver
+    settings_dict['options'] = OrderedDict()
+    for opt, val in config['options'].items():
+        try:
+            val = parse_quantity(val)
+            settings_dict['options'][opt] = val.nominal_value
+        except ValueError:
+            val = parse_string_literal(val)
+            settings_dict['options'][opt] = val
+
+    return settings_dict
+
+def parse_fit_config(config):
+    """Parse a fit configuration from a path to a parsable
+    configuration file or from a `PISAConfigParser`.
+    Requires at least sections 'fit' and 'fit.params'
+    and additional ones depending on the chosen fitting methods.
+
+    Parameters
+    ----------
+    config : str, OrderedDict, or ConfigParser
+
+    Returns
+    -------
+    settings_dict : OrderedDict
+
+    """
+
+    from pisa.analysis.analysis import ANALYSIS_METHODS
+    if isinstance(config, str):
+        config = from_file(config)
+    elif isinstance(config, PISAConfigParser):
+        pass
+    elif isinstance(config, Mapping):
+        return config
+    else:
+        raise TypeError(
+            '`config` must either be a string, PISAConfigParser, or OrderedDict.'
+            ' Got %s instead.' % type(config)
+        )
+
+    if not config.has_section('fit'):
+        raise NoSectionError(
+            'Could not find "fit". Please specify which fit methods to use'
+            ' here. Only found sections: %s.' % config.sections()
+        )
+
+    if not config.has_section('fit.params'):
+        raise NoSectionError(
+            'Could not find "fit.params". Please specify by which method to'
+            ' treat which parameter here. Only found sections: %s.'
+            % config.sections()
+        )
+
+    # parse fit methods first
+    settings_dict = OrderedDict()
+    fit_methods = config['fit']['method']
+    fit_methods = ''.join(fit_methods.split()).split('+')
+
+    # check whether all fit methods are recognised
+    excess = set(fit_methods).difference(set(ANALYSIS_METHODS))
+    if excess:
+        raise ValueError('Unrecognised fit method(s): %s' % excess)
+
+    # check for duplicates (could also ignore those, but let's be more
+    # cautious and raise)
+    method_count = Counter(fit_methods)
+    duplicates = [m for (m, c) in method_count.items() if c > 1]
+    if duplicates:
+        raise ValueError('Found duplicated fit method(s): %s' % duplicates)
+
+    # these are the allowed + must have options for the different fit methods
+    # these can be specified globally ("<opt> = ...") or per param
+    # ("<param>.<opt> = ..."), but if the latter doesn't exist a global
+    # default must be there
+    method_defaults = {'scan': {'range': None, 'nvalues': None},
+                       'pull': {'lin_range': None},
+                       # probably won't want to allow different minimizers for
+                       # different parameters, but at least we already have
+                       # the structure here for more complex fit settings for
+                       # minimization
+                       'minimize': {'global': None, 'local': None},
+                      }
+    # if the wildcard is employed, require global defaults to be set
+    wildcard = '*'
+
+    # now check whether for each method there's a specification of its
+    # parameters
+    fit_params = config['fit.params']
+    wildcard_used = False
+    # to prevent single parameters from being assigned to multiple methods
+    fit_pnames_collected = set()
+    for fit_method in sorted(fit_methods):
+        wildcard_here = False
+        if not fit_method in fit_params:
+            # no implicit assignment of fit parameters will be tolerated -
+            # at least wildcard required
+            raise ValueError('Please specify which parameters should be fit'
+                             ' via "%s".' % fit_method)
+        method_pnames = ''.join(fit_params[fit_method].split()).split(',')
+        for pname in method_pnames:
+            if pname in fit_pnames_collected:
+                raise ValueError(
+                    'Parameter "%s" already assigned to a fit method other than'
+                    ' "%s"!' % (pname, fit_method)
+                )
+        # TODO: make sure only one occurrence of any parameter within a method
+        if wildcard in method_pnames:
+            if wildcard_used:
+                raise ValueError(
+                    'Cannot use wildcard "%s" more than once in a fit config.'
+                    % wildcard
+                )
+            wildcard_used = True
+            wildcard_here = True
+        settings_dict[fit_method] = {
+            'params': {p: {} for p in sorted(method_pnames)}
+        }
+        # require a section for the fit method
+        if not config.has_section(fit_method):
+            raise NoSectionError(
+                'Could not find "%s". Only found sections: %s'
+                % (fit_method, config.sections())
+            )
+
+        # Look for specification of the allowed global defaults from
+        # `method_defaults` and for param-specific ones (take precedence)
+        if fit_method in method_defaults:
+            allowed_opts = sorted(method_defaults[fit_method].keys())
+            for opt in allowed_opts:
+                found_default = False
+                if opt in config[fit_method]:
+                    val = config[fit_method][opt]
+                    found_default = True
+                    if val == "None":
+                        method_defaults[fit_method][opt] = None
+                    # parse minimizer config
+                    elif fit_method == 'minimize' and opt in ['global', 'local']:
+                        method_defaults[fit_method][opt] = parse_minimizer_config(val)
+                    else:
+                        # remove *any* whitespace
+                        val = ''.join(parse_string_literal(val).split())
+                        method_defaults[fit_method][opt] = val
+                    # processed, so remove
+                    config[fit_method].pop(opt)
+                else:
+                    # this allowed default hasn't been set
+                    # -> only problematic if wildcard is used
+                    if wildcard_here:
+                        raise ValueError(
+                            'You have to globally set option "%s" for fit'
+                            ' method "%s" since you used the wildcard!'
+                            % (opt, fit_method)
+                        )
+                # start searching for param specific specs
+                for pname in method_pnames:
+                    # options set as <param>.<opt> take precedence over global
+                    # setting of <opt>
+                    param_opt = '%s.%s' % (pname, opt)
+                    if param_opt in config[fit_method]:
+                        if 'fit_method' == 'minimize':
+                            raise ValueError(
+                                'Currently only global default options allowed'
+                                ' for minimization! Found: "%s". Please just'
+                                ' specify "%s" exactly once.'
+                                % (param_opt, opt)
+                            )
+                        val = config[fit_method][param_opt]
+                        # remove *any* whitespace
+                        val = ''.join(parse_string_literal(val).split())
+                        config[fit_method].pop(param_opt)
+                    else:
+                        # but if no <param>.<opt> entry is found, there
+                        # *has* to be a global default for this fit method
+                        val = method_defaults[fit_method][opt]
+                        if not found_default:
+                            raise ValueError(
+                                'No option "%s" found for "%s". Either'
+                                ' set "%s" explicitly or set a "%s" default.'
+                                % (opt, pname, param_opt, opt)
+                            )
+                    settings_dict[fit_method]['params'][pname][opt] = val
+        # have to record the global defaults so we can later on apply them
+        # to the remaining parameters if the wildcard is used
+        if wildcard_here:
+            settings_dict[fit_method]['defaults'] = method_defaults[fit_method]
+        # make sure no excess specs remain
+        unhandled = config[fit_method].keys()
+        if unhandled:
+            raise ValueError(
+                'Unhandled "%s" specs: %s.' % (fit_method, unhandled)
+            )
+
+    return settings_dict
+
 
 class MutableMultiFileIterator(object):
     """
@@ -1327,6 +1564,47 @@ def test_parse_pipeline_config(config='settings/pipeline/example.cfg'):
         logging.info('%s: %s', key, vals)
         assert vals == config0[key]
 
+def test_parse_minimizer_config(
+    config='settings/minimizer/slsqp_ftol1e-6_eps1e-4_maxiter1000.cfg'
+):
+    """Unit test for function `parse_minimizer_config`"""
+    # parse `PISAConfigParser` instance first
+    config0 = PISAConfigParser()
+    config0.read(config)
+    config0 = parse_minimizer_config(config0)
+
+    # parse something that's been through the parser already
+    config1 = parse_minimizer_config(config0)
+
+    # pass the config path
+    config2 = parse_minimizer_config(config)
+
+    logging.info('Keys and values found in config:')
+    for key, vals in config2.items():
+        logging.info('%s: %s', key, vals)
+        assert vals == config0[key]
+        assert vals == config1[key]
+
+def test_parse_fit_config(
+    config='settings/fit/example_basinhopping_lbfgsb.cfg'
+):
+    """Unit test for function `parse_fit_config`"""
+    # parse `PISAConfigParser` instance first
+    config0 = PISAConfigParser()
+    config0.read(config)
+    config0 = parse_fit_config(config0)
+
+    # parse something that's been through the parser already
+    config1 = parse_fit_config(config0)
+
+    # pass the config path
+    config2 = parse_fit_config(config)
+
+    logging.info('Keys and values found in config:')
+    for key, vals in config2.items():
+        logging.info('%s: %s', key, vals)
+        assert vals == config0[key]
+        assert vals == config1[key]
 
 def test_MutableMultiFileIterator():
     """Unit test for class `MutableMultiFileIterator`"""
@@ -1410,3 +1688,5 @@ def parse_args():
 
 if __name__ == '__main__':
     test_parse_pipeline_config(**parse_args())
+    test_parse_minimizer_config()
+    test_parse_fit_config()
