@@ -621,7 +621,10 @@ class ParamSet(MutableSequence, Set):
                 'All params must be of type "Param"'
 
         self._params = param_sequence
-        self.normalize_values = False
+
+        # if we do not normalize, then the hash will change upon evaluating unit changes
+        # I think because the changed units are cached in the object (Philipp)
+        self.normalize_values = True
 
     @property
     def serializable_state(self):
