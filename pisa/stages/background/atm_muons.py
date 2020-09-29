@@ -47,14 +47,9 @@ class atm_muons(Stage):
     """
 
     def __init__(self,
-                 data=None,
-                 params=None,
-                 input_names=None,
-                 output_names=None,
-                 debug_mode=None,
-                 calc_mode=None,
-                 apply_mode=None,
-                ):
+                 input_names,
+                 **std_kwargs,
+                 ):
 
         expected_params = (
             'atm_muon_scale',
@@ -63,23 +58,18 @@ class atm_muons(Stage):
             'delta_gamma_mu_variable',
             'delta_gamma_mu'
         )
-        output_names = ()
 
         # input_names should specify the key that the muon data can be found under in the input file
         if input_names is None :
             input_names = ("muons",)
         assert len(input_names) == 1
 
+        self.input_names = input_names
+
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
 

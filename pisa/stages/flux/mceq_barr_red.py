@@ -85,13 +85,7 @@ class mceq_barr_red(Stage):
     def __init__(
         self,
         table_file,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
 
         #
@@ -158,9 +152,6 @@ class mceq_barr_red(Stage):
             "energy_pivot",
         )
 
-        input_names = ()
-        output_names = ()
-
         # Using Honda for nominal flux. Keys should already exist
         # what are keys added or altered in the calculation used during apply
         # what keys are added or altered for the outputs during apply
@@ -170,14 +161,8 @@ class mceq_barr_red(Stage):
 
         # init base class
         super(mceq_barr_red, self).__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
 

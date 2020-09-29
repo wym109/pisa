@@ -111,18 +111,12 @@ class nusquids(Stage):
 
     """
     def __init__(self,
-                 data=None,
-                 params=None,
-                 input_names=None,
-                 output_names=None,
-                 debug_mode=None,
-                 calc_mode=None,
-                 apply_mode=None,
                  use_decoherence=False,
                  num_decoherence_gamma=1,
                  use_nsi=False,
                  num_neutrinos=3,
                  use_spline=False,
+                 **std_kwargs,
                 ):
 
         self.num_neutrinos = num_neutrinos
@@ -162,19 +156,10 @@ class nusquids(Stage):
         # Add NSI parameters
         #TODO
 
-        input_names = ()
-        output_names = ()
-
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
         assert self.num_neutrinos == 3, "Only 3-flavor oscillations implemented right now" # TODO Add interface to nuSQuIDS 3+N handling

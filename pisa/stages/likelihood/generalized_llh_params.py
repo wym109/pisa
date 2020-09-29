@@ -72,30 +72,12 @@ class generalized_llh_params(Stage):
  
     # this is the constructor with default arguments
     def __init__(self,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
-        ):
-        #
-        # A bunch of options we don't need
-        #
-        expected_params = ()
-        input_names = ()
-        output_names = ()
- 
+                 **std_kwargs,
+                 ):
+
         # init base class
-        super(generalized_llh_params, self).__init__(data=data,
-                                                     params=params,
-                                                     expected_params=expected_params,
-                                                     input_names=input_names,
-                                                     output_names=output_names,
-                                                     debug_mode=debug_mode,
-                                                     calc_mode=calc_mode,
-                                                     apply_mode=apply_mode,
+        super(generalized_llh_params, self).__init__(expected_params=(),
+                                                     **std_kwargs,
                                                      )
  
     def setup_function(self):

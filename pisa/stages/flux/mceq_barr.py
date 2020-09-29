@@ -88,13 +88,7 @@ class mceq_barr(Stage):
         self,
         table_file,
         include_nutau_flux=False,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
 
         #
@@ -168,14 +162,6 @@ class mceq_barr(Stage):
             "energy_pivot",
         )
 
-        input_names = ()
-        output_names = ()
-
-        # what are the keys used from the inputs during apply
-
-        # what are keys added or altered in the calculation used during apply
-        # what keys are added or altered for the outputs during apply
-
         # store args
         self.table_file = table_file
         self.include_nutau_flux = include_nutau_flux
@@ -183,14 +169,8 @@ class mceq_barr(Stage):
 
         # init base class
         super(mceq_barr, self).__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
 

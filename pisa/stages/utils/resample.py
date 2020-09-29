@@ -41,37 +41,19 @@ class resample(Stage):  # pylint: disable=invalid-name
     def __init__(
         self,
         scale_errors=True,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        error_method=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
         raise NotImplementedError('Needs some care, broken in pisa4')
 
-        expected_params = ()
-        input_names = ()
-        output_names = ()
-        
         map_output_key = "weights_resampled"
         map_output_error_key = "errors_resampled"
         
         # init base class
         super().__init__(
-            data=data,
-            params=params,
-            expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            error_method=error_method,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            expected_params=(),
             map_output_key=map_output_key,
             map_output_error_key=map_output_error_key,
+            **std_kwargs,
         )
 
         # This stage only makes sense when going binned to binned.

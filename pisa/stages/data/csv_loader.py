@@ -28,42 +28,20 @@ class csv_loader(Stage):
     def __init__(
         self,
         events_file,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        output_names,
+        **std_kwargs,
     ):
 
         # instantiation args that should not change
         self.events_file = events_file
 
-        expected_params = ()
-
-        # created as ones if not already present
-
-        # copy of initial weights, to be modified by later stages
-
         # init base class
         super().__init__(
-            data=data,
-            params=params,
-            expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            expected_params=(),
+            **std_kwargs,
         )
 
-        # check output names
-        if len(self.output_names) != len(set(self.output_names)):
-            raise ValueError(
-                'Found duplicates in `output_names`, but each name must be'
-                ' unique.'
-            )
+        self.output_names = output_names
 
 
     def setup_function(self):

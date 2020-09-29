@@ -68,6 +68,9 @@ class DistributionMaker(object):
         checked for consistency (you should use multiple `Detector`s if you
         have incompatible data sets).
 
+    profile : bool
+        timing of inidividual pipelines / stages
+
     Notes
     -----
     Free params with the same name in two pipelines are updated at the same
@@ -84,11 +87,13 @@ class DistributionMaker(object):
     intervals are non-physical.
 
     """
-    def __init__(self, pipelines, label=None, set_livetime_from_data=True):
+    def __init__(self, pipelines, label=None, set_livetime_from_data=True, profile=False):
 
         self.label = label
         self._source_code_hash = None
         self.metadata = OrderedDict()
+
+        self._profile = profile
 
         self._pipelines = []
         if isinstance(pipelines, (str, PISAConfigParser, OrderedDict,
@@ -97,7 +102,7 @@ class DistributionMaker(object):
 
         for pipeline in pipelines:
             if not isinstance(pipeline, Pipeline):
-                pipeline = Pipeline(pipeline)
+                pipeline = Pipeline(pipeline, profile=profile)
             self._pipelines.append(pipeline)
 
         data_run_livetime = None
@@ -178,6 +183,16 @@ class DistributionMaker(object):
 
     def __iter__(self):
         return iter(self._pipelines)
+
+    @property
+    def profile(self):
+        return self._profile
+
+    @profile.setter
+    def profile(self, value):
+        for pipelines in self.pipeline:
+            pipeline.profile = value
+        self._profile = value
 
 
     def run(self):

@@ -40,13 +40,7 @@ class barr_simple(Stage):  # pylint: disable=invalid-name
     """
     def __init__(
         self,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
         expected_params = (
             "nue_numu_ratio",
@@ -55,19 +49,11 @@ class barr_simple(Stage):  # pylint: disable=invalid-name
             "Barr_uphor_ratio",
             "Barr_nu_nubar_ratio",
         )
-        input_names = ()
-        output_names = ()
 
         # init base class
         super(barr_simple, self).__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
     def setup_function(self):

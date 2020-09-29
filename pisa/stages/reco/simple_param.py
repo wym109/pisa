@@ -407,13 +407,7 @@ class simple_param(Stage):
     """
 
     def __init__(self,
-                 data=None,
-                 params=None,
-                 input_names=None,
-                 output_names=None,
-                 debug_mode=None,
-                 calc_mode=None,
-                 apply_mode=None,
+                 **std_kwargs,
                 ):
 
         expected_params = ( 
@@ -424,30 +418,12 @@ class simple_param(Stage):
                         "track_pid",
                         "cascade_pid",
                         )
-        
-        input_names = (
-                    'true_energy',
-                    'true_coszen',
-                    )
-        output_names = ()
 
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
-
-        #TODO Suport other modes
-        assert self.input_mode == "events"
-        assert self.calc_mode is None
-        assert self.output_mode == "events"
-
 
     def setup_function(self):
 

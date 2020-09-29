@@ -24,33 +24,13 @@ class set_variance(Stage):  # pylint: disable=invalid-name
         variance_floor=None,
         expected_total_mc=None,
         divide_total_mc=False,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        error_method=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
-
-        expected_params = ()
-        input_names = ()
-        output_names = ()
-
-        # what are the keys used from the inputs during apply
 
         # init base class
         super().__init__(
-            data=data,
-            params=params,
-            expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            error_method=error_method,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            expected_params=(),
+            **std_kwargs,
         )
 
         assert self.input_mode == "binned"

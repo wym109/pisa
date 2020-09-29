@@ -31,19 +31,12 @@ class add_indices(Stage):
 
     Parameters
     ----------
-    data
     params
         foo : Quantity
         bar : Quanitiy with time dimension
-    input_names
-    output_names
-    debug_mode
-    calc_mode : must be events
-    apply_mode: must be a MultiDimBinnig
 
     Notes:
     ------
-
     - input and calc specs are predetermined in the module
         (inputs from the config files will be disregarded)
 
@@ -56,39 +49,16 @@ class add_indices(Stage):
     # this is the constructor with default arguments
     
     def __init__(self,
-                 data=None,
-                 params=None,
-                 input_names=None,
-                 output_names=None,
-                 debug_mode=None,
-                 calc_mode=None,
-                 apply_mode=None,
-                ):
+                 **std_kwargs,
+                 ):
 
-        #
-        # No parameters are expected in this stage
-        # same goes for a bunch of other stage options
-        #
-        expected_params = ()
-        input_names = ()
-        output_names = ()
-
-        # We add the bin_indices key
-        # (but not in the apply function so maybe useless...)
-        #
 
         # init base class
-        super(add_indices, self).__init__(data=data,
-                                       params=params,
-                                       expected_params=expected_params,
-                                       input_names=input_names,
-                                       output_names=output_names,
-                                       debug_mode=debug_mode,
-                                       calc_mode=calc_mode,
-                                       apply_mode=apply_mode,
+        super(add_indices, self).__init__(
+                                       expected_params=(),
+                                       **std_kwargs,
                                        )
 
-        # make sure the user specified some modes
 
     def setup_function(self):
         '''

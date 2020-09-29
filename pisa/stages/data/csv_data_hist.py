@@ -26,13 +26,7 @@ class csv_data_hist(Stage):
     """
     def __init__(self,
                  events_file,
-                 data=None,
-                 params=None,
-                 input_names=None,
-                 output_names=None,
-                 debug_mode=None,
-                 calc_mode=None,
-                 apply_mode=None,
+                 **std_kwargs,
                 ):
 
         # instantiation args that should not change
@@ -42,14 +36,8 @@ class csv_data_hist(Stage):
 
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
         assert self.output_mode == 'binned'

@@ -62,26 +62,18 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
     params : ParamSet
         Note that the params required to be in `params` are determined from
         those listed in the `fit_results_file`.
+
+    links : ?
+
     """
     def __init__(
         self,
         fit_results_file,
         propagate_uncertainty=False,
         interpolated=False,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        error_method=None,
-        calc_mode=None,
-        apply_mode=None,
         links=None,
+        **std_kwargs,
     ):
-        # pylint: disable=line-too-long
-        # -- Expected input / output names -- #
-        input_names = ()
-        output_names = ()
 
         # -- Load hypersurfaces -- #
 
@@ -97,21 +89,14 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
             self.inter_params = inter_params
             expected_params = hs_params+inter_params
         else:
-            hypersurfaces = hs.load_hypersurfaces(self.fit_results_file, calc_mode)
+            hypersurfaces = hs.load_hypersurfaces(self.fit_results_file, std_kwargs['calc_mode'])
             self.hypersurface_param_names = list(hypersurfaces.values())[0].param_names
             expected_params = self.hypersurface_param_names
 
         # -- Initialize base class -- #
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            error_method=error_method,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
         # -- Only allowed/implemented modes -- #

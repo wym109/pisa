@@ -273,13 +273,7 @@ class decoherence(Stage):
 
     """
     def __init__(self,
-                 data=None,
-                 params=None,
-                 input_names=None,
-                 output_names=None,
-                 debug_mode=None,
-                 calc_mode=None,
-                 apply_mode=None,
+                 **std_kwargs,
                 ):
 
         expected_params = ('detector_depth',
@@ -299,18 +293,10 @@ class decoherence(Stage):
                            'gamma32',
                           )
 
-        input_names = ()
-        output_names = ()
-
         # init base class
-        super(decoherence, self).__init__(data=data,
-                                       params=params,
+        super(decoherence, self).__init__(
                                        expected_params=expected_params,
-                                       input_names=input_names,
-                                       output_names=output_names,
-                                       debug_mode=debug_mode,
-                                       calc_mode=calc_mode,
-                                       apply_mode=apply_mode,
+                                       **std_kwargs,
                                       )
 
         #Have not yet implemented matter effects

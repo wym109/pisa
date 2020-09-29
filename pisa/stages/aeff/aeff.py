@@ -40,13 +40,7 @@ class aeff(Stage):  # pylint: disable=invalid-name
     """
     def __init__(
         self,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
         expected_params = (
             'livetime',
@@ -55,23 +49,11 @@ class aeff(Stage):  # pylint: disable=invalid-name
             'nutau_norm',
             'nu_nc_norm',
         )
-        input_names = ()
-        output_names = ()
-
-        # what are the keys used from the inputs during apply
-
-        # what keys are added or altered for the outputs during apply
 
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
 
@@ -94,8 +76,5 @@ class aeff(Stage):  # pylint: disable=invalid-name
             if 'nc' in container.name:
                 scale *= nu_nc_norm
 
-            vectorizer.imul_and_scale(
-                vals=container['weighted_aeff'],
-                scale=scale,
-                out=container['weights'],
-            )
+            container['weights'] *= container['weighted_aeff'] * scale
+            container.mark_changed('weights')

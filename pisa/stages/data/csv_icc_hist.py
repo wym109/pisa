@@ -26,34 +26,17 @@ class csv_icc_hist(Stage):
     def __init__(
         self,
         events_file,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        error_method=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
         # instantiation args that should not change
         self.events_file = events_file
 
         expected_params = ('atm_muon_scale',)
 
-
-        # copy of initial weights, to be modified by later stages
-
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            error_method=error_method,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
     def setup_function(self):

@@ -59,32 +59,13 @@ class kfold(Stage):
         renormalize=False,
         shuffle=False,
         save_mask=False,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
-
-        expected_params = ()
-        input_names = ()
-        output_names = ()
-
-
-        # The weights are simply scaled by the earth survival probability
 
         # init base class
         super().__init__(
-            data=data,
-            params=params,
-            expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            expected_params=(),
+            **std_kwargs,
         )
 
         assert self.calc_mode == "events"

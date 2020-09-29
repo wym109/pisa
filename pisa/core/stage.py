@@ -3,15 +3,14 @@ Stage class designed to be inherited by PISA services, such that all basic
 functionality is built-in.
 """
 
-
 from __future__ import absolute_import, division
 
 from copy import deepcopy
 from collections import OrderedDict
 from collections.abc import Mapping
 import inspect
+from time import time
 
-from pisa.core.base_stage import BaseStage
 from pisa.core.binning import MultiDimBinning
 from pisa.core.container import ContainerSet
 from pisa.utils.log import logging
@@ -68,6 +67,7 @@ class Stage():
         error_method=None,
         calc_mode=None,
         apply_mode=None,
+        profile=False,
     ):
         # Allow for string inputs, but have to populate into lists for
         # consistent interfacing to one or multiple of these things
@@ -122,7 +122,14 @@ class Stage():
         self.apply_mode = apply_mode
         self.data = data
 
+        self._error_method = error_method
+
         self.param_hash = None
+
+        self.profile = profile
+        self.setup_times = []
+        self.calc_times = []
+        self.apply_times = []
 
 
     def select_params(self, selections, error_on_missing=False):
@@ -275,8 +282,14 @@ class Stage():
             self.data.representation = self.calc_mode
 
         # call the user-defined setup function
-        self.setup_function()
-
+        if self.profile:
+            start_t = time()
+            self.setup_function()
+            end_t = time()
+            self.setup_times.append(end_t - start_t)
+        else:
+            self.setup_function() 
+            
         # invalidate param hash:
         self.param_hash = -1
 
@@ -298,7 +311,13 @@ class Stage():
         if self.calc_mode is not None:
             self.data.representation = self.calc_mode
 
-        self.compute_function()
+        if self.profile:
+            start_t = time()
+            self.compute_function()
+            end_t = time()
+            self.calc_times.append(end_t - start_t)
+        else:
+            self.compute_function()
         self.param_hash = new_param_hash
 
     def compute_function(self):
@@ -309,7 +328,14 @@ class Stage():
 
         if self.apply_mode is not None:
             self.data.representation = self.apply_mode
-        self.apply_function()
+
+        if self.profile:
+            start_t = time()
+            self.apply_function()
+            end_t = time()
+            self.apply_times.append(end_t - start_t)
+        else:
+            self.apply_function()
 
 
     def apply_function(self):

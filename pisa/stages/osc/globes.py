@@ -58,13 +58,7 @@ class globes(Stage):
         globes_wrapper,
         detector_depth=2.*ureg.km,
         prop_height=20.*ureg.km,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
 
         expected_params = (
@@ -79,27 +73,11 @@ class globes(Stage):
             'deltacp',
         )
 
-        input_names = ()
-        output_names = ()
-
-        # what are the keys used from the inputs during apply
-
-        # what are keys added or altered in the calculation used during apply
-
-        # what keys are added or altered for the outputs during apply
-
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
-
 
         self.layers = None
         self.osc_params = None

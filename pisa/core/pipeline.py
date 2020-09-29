@@ -81,9 +81,12 @@ class Pipeline(object):
         `config_parser.parse_pipeline_config()` method to get a config
         OrderedDict. If `OrderedDict`, use directly as pipeline configuration.
 
+    profile : bool
+        Perform timings
+
     """
 
-    def __init__(self, config):
+    def __init__(self, config, profile=False):
         if isinstance(config, (str, PISAConfigParser)):
             config = parse_pipeline_config(config=config)
         elif isinstance(config, OrderedDict):
@@ -101,11 +104,23 @@ class Pipeline(object):
         self.output_binning = config['pipeline']['output_binning']
         self.output_key = config['pipeline']['output_key']
 
+        self._profile = profile
+
         self._stages = []
         self._config = config
         self._init_stages()
         self._source_code_hash = None
 
+
+    @property
+    def profile(self):
+        return self._profile
+
+    @profile.setter
+    def profile(self, value):
+        for stage in self.stages:
+            stage.profile = value
+        self._profile = value
 
     def index(self, stage_id):
         """Return the index in the pipeline of `stage_id`.
@@ -204,7 +219,7 @@ class Pipeline(object):
                     % (stage_name, service_name, settings)
                 )
                 try:
-                    service = service_cls(**settings)
+                    service = service_cls(**settings, profile=self._profile)
                 except Exception:
                     logging.error(
                         "Failed to instantiate stage.service %s.%s with settings %s",
