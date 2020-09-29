@@ -21,7 +21,6 @@ class aeff(Stage):  # pylint: disable=invalid-name
 
     Parameters
     ----------
-    data
     params
         Expected params are .. ::
 
@@ -31,19 +30,13 @@ class aeff(Stage):  # pylint: disable=invalid-name
             nutau_norm : dimensionless Quantity
             nu_nc_norm : dimensionless Quantity
 
-    input_names
-    output_names
-    debug_mode
-    calc_mode
-    apply_mode
-
     """
     def __init__(
         self,
         **std_kwargs,
     ):
         expected_params = (
-            'livetime',
+            ner['weights'] *='livetime',
             'aeff_scale',
             'nutau_cc_norm',
             'nutau_norm',
