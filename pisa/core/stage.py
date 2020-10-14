@@ -9,6 +9,7 @@ from copy import deepcopy
 from collections import OrderedDict
 from collections.abc import Mapping
 import inspect
+import numpy as np
 from time import time
 
 from pisa.core.binning import MultiDimBinning
@@ -131,6 +132,15 @@ class Stage():
         self.calc_times = []
         self.apply_times = []
 
+
+    def report_profile(self):
+        print(self.stage_name, self.service_name)
+        print('- setup: Total time %.3f s, n calls: %i'%(np.sum(self.setup_times), len(self.setup_times)))
+        print('         Individual runs: ', ', '.join(['%i: %.3f s' % (i, t) for i, t in enumerate(self.setup_times)]))
+        print('- calc:  Total time %.3f s, n calls: %i'%(np.sum(self.calc_times), len(self.calc_times)))
+        print('         Individual runs: ', ', '.join(['%i: %.3f s' % (i, t) for i, t in enumerate(self.calc_times)]))
+        print('- apply: Total time %.3f s, n calls: %i'%(np.sum(self.apply_times), len(self.apply_times)))
+        print('         Individual runs: ', ', '.join(['%i: %.3f s' % (i, t) for i, t in enumerate(self.apply_times)]))
 
     def select_params(self, selections, error_on_missing=False):
         """Apply the `selections` to contained ParamSet.

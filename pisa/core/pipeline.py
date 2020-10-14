@@ -111,6 +111,9 @@ class Pipeline(object):
         self._init_stages()
         self._source_code_hash = None
 
+    def report_profile(self):
+        for stage in self.stages:
+            stage.report_profile()
 
     @property
     def profile(self):
