@@ -15,7 +15,7 @@ import time
 import numpy as np
 from scipy.optimize import OptimizeWarning
 
-from pisa import ureg
+from pisa import ureg, FTYPE
 from pisa.core.detectors import Detectors
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
@@ -112,7 +112,7 @@ def set_minimizer_defaults(minimizer_settings):
 
     sqrt_ftype_eps = np.sqrt(np.finfo(FTYPE).eps)
     opt_defaults = {}
-    method = minimizer_settings['method']['value'].lower()
+    method = minimizer_settings['method'].lower()
 
     if method == 'l-bfgs-b' and FTYPE == np.float64:
         # From `scipy.optimize.lbfgsb._minimize_lbfgsb`
@@ -138,14 +138,14 @@ def set_minimizer_defaults(minimizer_settings):
         raise ValueError('Unhandled minimizer "%s" / FTYPE=%s'
                          % (method, FTYPE))
 
-    opt_defaults.update(new_minimizer_settings['options']['value'])
+    opt_defaults.update(new_minimizer_settings['options'])
 
-    new_minimizer_settings['options']['value'] = opt_defaults
+    new_minimizer_settings['options'] = opt_defaults
 
     # Populate the descriptions with something
-    for opt_name in new_minimizer_settings['options']['value']:
-        if opt_name not in new_minimizer_settings['options']['desc']:
-            new_minimizer_settings['options']['desc'] = 'no desc'
+    #for opt_name in new_minimizer_settings['options']:
+    #    if opt_name not in new_minimizer_settings['options']['desc']:
+    #        new_minimizer_settings['options']['desc'] = 'no desc'
 
     return new_minimizer_settings
 
@@ -918,15 +918,15 @@ class Analysis(object):
 
                 # Take the one with the best fit
                 if metric[0] in METRICS_TO_MAXIMIZE:
-                    it_got_better = (
+                    got_better = (
                         new_fit_info['metric_val'] > best_fit_info['metric_val']
                     )
                 else:
-                    it_got_better = (
+                    got_better = (
                         new_fit_info['metric_val'] < best_fit_info['metric_val']
                     )
 
-                if it_got_better:
+                if got_better:
 
                     alternate_fits.append(best_fit_info)
                     best_fit_info = new_fit_info
@@ -1932,12 +1932,12 @@ class Analysis(object):
             if m == 'generalized_poisson_llh':
                 name_vals_d['maps'] = data_dist.maps[0].generalized_poisson_llh(expected_values=generalized_poisson_hypo)
                 llh_binned = data_dist.maps[0].generalized_poisson_llh(expected_values=generalized_poisson_hypo, binned=True)
-                map_binned = Map(name=metric,
+                map_binned = Map(name=m,
                                 hist=np.reshape(llh_binned, data_dist.maps[0].shape),
                                 binning=data_dist.maps[0].binning
                     )
                 name_vals_d['maps_binned'] = MapSet(map_binned)
-                name_vals_d['priors'] = params.priors_penalties(metric=metric)
+                name_vals_d['priors'] = params.priors_penalties(metric=m)
                 detailed_metric_info[m] = name_vals_d
 
             else:
@@ -1961,7 +1961,7 @@ class Analysis(object):
                     )
                     maps_binned.append(map_binned)
                 name_vals_d['maps_binned'] = MapSet(maps_binned)
-                name_vals_d['priors'] = params.priors_penalties(metric=metric)
+                name_vals_d['priors'] = params.priors_penalties(metric=m)
                 detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
 

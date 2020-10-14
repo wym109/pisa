@@ -281,6 +281,7 @@ def mcllh_mean(actual_values, expected_values):
 
     llh_val = likelihood_functions.poisson_gamma(
         data=actual_values, sum_w=expected_values, sum_w2=sigma**2, a=0, b=0
+        )
 
     return llh_val
 
