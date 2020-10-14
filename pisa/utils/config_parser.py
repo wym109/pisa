@@ -629,7 +629,10 @@ def parse_pipeline_config(config):
     order = [split(x, STAGE_SEP) for x in split(config.get(section, 'order'))]
 
     # Name of pipeline
-    stage_dicts[section]['name'] = config.get(section, 'name')
+    if config.has_option(section, 'name'):
+        stage_dicts[section]['name'] = config.get(section, 'name')
+    else:
+        stage_dicts[section]['name'] = "none"
 
     if config.has_option(section, 'output_binning'):
         stage_dicts[section]['output_binning'] = binning_dict[config.get(section, 'output_binning')]
@@ -641,6 +644,7 @@ def parse_pipeline_config(config):
         else:
             raise ValueError(f'Output key should be exactly one key, or a tuple (key, error_key), but is {output_key}')
     else:
+        stage_dicts[section]['output_binning'] = None
         stage_dicts[section]['output_format'] = None
         stage_dicts[section]['output_key'] = None
 

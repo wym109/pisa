@@ -19,7 +19,10 @@ class toy_event_generator(Stage):
 
     Parameters
     ----------
-    data
+
+    output_names : str
+        list of output names
+
     params
         Expected params .. ::
 
@@ -29,36 +32,21 @@ class toy_event_generator(Stage):
             seed : int
                 Seed to be used for random
 
-    input_names
-    output_names
-    debug_mode
-    calc_mode
-    apply_mode
-
     """
     def __init__(
         self,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        output_names,
+        **std_kwargs,
     ):
+
         expected_params = ('n_events', 'random', 'seed')
 
+        self.output_names = output_names
 
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
     def setup_function(self):
