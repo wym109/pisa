@@ -36,7 +36,7 @@ class aeff(Stage):  # pylint: disable=invalid-name
         **std_kwargs,
     ):
         expected_params = (
-            ner['weights'] *='livetime',
+            'livetime',
             'aeff_scale',
             'nutau_cc_norm',
             'nutau_norm',
