@@ -343,7 +343,7 @@ class Container():
         
     @property
     def is_map(self):
-        '''Is current represenatation a map/grid'''
+        '''Is current representation a map/grid'''
         return isinstance(self.representation, MultiDimBinning)
         
     def mark_changed(self, key):

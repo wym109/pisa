@@ -133,14 +133,23 @@ class Stage():
         self.apply_times = []
 
 
-    def report_profile(self):
+    def report_profile(self, detailed=False):
+        def format(times):
+            tot = np.sum(times)
+            n = len(times)
+            ave = 0. if n == 0 else tot/n
+            return 'Total time %.5f s, n calls: %i, time/call: %.5f s'%(tot, n, ave)
+
         print(self.stage_name, self.service_name)
-        print('- setup: Total time %.3f s, n calls: %i'%(np.sum(self.setup_times), len(self.setup_times)))
-        print('         Individual runs: ', ', '.join(['%i: %.3f s' % (i, t) for i, t in enumerate(self.setup_times)]))
-        print('- calc:  Total time %.3f s, n calls: %i'%(np.sum(self.calc_times), len(self.calc_times)))
-        print('         Individual runs: ', ', '.join(['%i: %.3f s' % (i, t) for i, t in enumerate(self.calc_times)]))
-        print('- apply: Total time %.3f s, n calls: %i'%(np.sum(self.apply_times), len(self.apply_times)))
-        print('         Individual runs: ', ', '.join(['%i: %.3f s' % (i, t) for i, t in enumerate(self.apply_times)]))
+        print('- setup: ', format(self.setup_times))
+        if detailed:
+            print('         Individual runs: ', ', '.join(['%i: %.3f s' % (i, t) for i, t in enumerate(self.setup_times)]))
+        print('- calc:  ', format(self.calc_times))
+        if detailed:
+            print('         Individual runs: ', ', '.join(['%i: %.3f s' % (i, t) for i, t in enumerate(self.calc_times)]))
+        print('- apply: ', format(self.apply_times))
+        if detailed:
+            print('         Individual runs: ', ', '.join(['%i: %.3f s' % (i, t) for i, t in enumerate(self.apply_times)]))
 
     def select_params(self, selections, error_on_missing=False):
         """Apply the `selections` to contained ParamSet.

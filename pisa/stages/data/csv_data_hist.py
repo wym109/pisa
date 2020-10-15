@@ -40,15 +40,13 @@ class csv_data_hist(Stage):
             **std_kwargs,
         )
 
-        assert self.output_mode == 'binned'
-
 
     def setup_function(self):
 
         events = pd.read_csv(self.events_file)
 
         container = Container('data')
-        container.data_specs = 'events'
+        container.representation = self.calc_mode
 
         container['weights'] = events['count'].values.astype(FTYPE)
         container['reco_energy'] = events['reco_energy'].values.astype(FTYPE)

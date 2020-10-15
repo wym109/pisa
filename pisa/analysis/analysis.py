@@ -717,6 +717,7 @@ class Analysis(object):
     def _optimize_t23_octant(self, best_fit_info, alternate_fits, data_dist,
                              hypo_maker, metric, minimizer_settings,
                              other_metrics, pprint, blind,
+                             fit_octants_separately,
                              theta23_orig_and_other_octant=None,
                              external_priors_penalty=None):
         """Logic for optimizing octant of theta23, which should not be called
@@ -1253,6 +1254,7 @@ class Analysis(object):
                 best_fit_info=best_fit_info,
                 alternate_fits=alternate_fits,
                 data_dist=data_dist,
+                fit_octants_separately=fit_octants_separately,
                 hypo_maker=hypo_maker,
                 metric=metric,
                 minimizer_settings=parsed_minimizer_settings,

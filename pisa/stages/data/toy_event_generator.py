@@ -99,5 +99,5 @@ class toy_event_generator(Stage):
     def apply_function(self):
         # reset weights
         for container in self.data:
-            # copy, such that initial_weights are preserved!
-            container['weights'] = np.copy(container['initial_weights'])
+            container['weights'][:] = container['initial_weights']
+            container.mark_changed('weights')

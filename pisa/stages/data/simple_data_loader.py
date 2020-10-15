@@ -223,12 +223,8 @@ class simple_data_loader(Stage):
         self.record_event_properties()
 
 
-    @profile
     def apply_function(self):
-        '''Cf. `Stage` docs.'''
-        # TODO: do we need following line? Isn't this handled universally
-        # by the base class (in Stage's apply)?
-        self.data.representation = self.apply_mode
         # reset weights to initial weights prior to downstream stages running
         for container in self.data:
-            vectorizer.assign(container['initial_weights'], out=container['weights'])
+            container['weights'][:] = container['initial_weights']
+            container.mark_changed('weights')

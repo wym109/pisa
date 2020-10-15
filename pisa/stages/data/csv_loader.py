@@ -91,7 +91,7 @@ class csv_loader(Stage):
                 'No containers created during data loading for some reason.'
             )
 
-    @profile
     def apply_function(self):
         for container in self.data:
-            vectorizer.assign(container['initial_weights'], out=container['weights'])
+            container['weights'][:] = container['initial_weights']
+            container.mark_changed('weights')

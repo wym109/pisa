@@ -22,6 +22,8 @@ from pisa.stages.osc.prob3numba.numba_osc_hostfuncs import propagate_array, fill
 from pisa.utils.numba_tools import WHERE
 from pisa.utils.resources import find_resource
 
+from joblib import Parallel, delayed
+
 
 class prob3(Stage):
     """
@@ -336,6 +338,7 @@ class prob3(Stage):
 
             container.mark_changed('prob_e')
             container.mark_changed('prob_mu')
+
 
     def apply_function(self):
         # update the outputted weights
