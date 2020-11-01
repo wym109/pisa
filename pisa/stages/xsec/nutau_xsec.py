@@ -10,14 +10,14 @@ import numpy as np
 import pickle
 from numba import guvectorize
 
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.resources import open_resource
 from pisa.utils import vectorizer
 from pisa import FTYPE, TARGET
 from pisa.utils.numba_tools import WHERE
 
 
-class pi_nutau_xsec(PiStage):
+class nutau_xsec(Stage):
     """
     Nu_tau cross-section correction to interpolate between different nutau CC
     cross-section models. This requires the interpolated file produced by 
@@ -40,45 +40,17 @@ class pi_nutau_xsec(PiStage):
     def __init__(
         self,
         xsec_file="cross_sections/interp_nutau_xsec_protocol2.pckl",
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        **std_kwargs,
     ):
 
         expected_params = ("nutau_xsec_scale")
 
-        input_names = ()
-        output_names = ()
-
-        # what are the keys used from the inputs during apply
-        input_apply_keys = ("weights", "nutau_xsec_func")
-
-        # what keys are added or altered for the outputs during apply
-        output_apply_keys = ("weights")
-
         # init base class
-        super(pi_nutau_xsec, self).__init__(
-            data=data,
-            params=params,
+        super(nutau_xsec, self).__init__(
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_apply_keys=output_apply_keys,
+            **std_kwargs,
         )
 
-        assert self.output_mode is not None
-        assert self.calc_mode is not None
-        
         self.xsec_file = xsec_file
     
     def setup_function(self):
@@ -87,10 +59,10 @@ class pi_nutau_xsec(PiStage):
         interp_nutau = interp_dict["NuTau"]
         interp_nutaubar = interp_dict["NuTauBar"]
         
-        self.data.data_specs = self.calc_specs
+        self.data.representation = self.calc_mode
         for container in self.data:
             if container.name == "nutau_cc":
-                energy = container["true_energy"].get(WHERE)
+                energy = container["true_energy"]
                 func = interp_nutau(energy)
                 # Invalid values of the function occur below the tau production 
                 # threshold. For those values, we put in negative infinity, which will
@@ -98,7 +70,7 @@ class pi_nutau_xsec(PiStage):
                 func[~np.isfinite(func)] = -np.inf
                 container["nutau_xsec_func"] = func
             elif container.name == "nutaubar_cc":
-                energy = container["true_energy"].get(WHERE)
+                energy = container["true_energy"]
                 func = interp_nutaubar(energy)
                 func[~np.isfinite(func)] = -np.inf
                 container["nutau_xsec_func"] = func
@@ -113,15 +85,15 @@ class pi_nutau_xsec(PiStage):
         for container in self.data:
             if container.name in ["nutau_cc", "nutaubar_cc"]:
                 calc_scale_vectorized(
-                    container["nutau_xsec_func"].get(WHERE),
+                    container["nutau_xsec_func"],
                     FTYPE(scale),
-                    out=container["nutau_xsec_scale"].get(WHERE)
+                    out=container["nutau_xsec_scale"]
                 )
     
     def apply_function(self):
         for container in self.data:
             if container.name in ["nutau_cc", "nutaubar_cc"]:
-                vectorizer.imul(container["nutau_xsec_scale"], container["weights"])
+                container["weights"] *= container["nutau_xsec_scale"]
 
 # vectorized function to calculate 1 + f(E)*scale
 # must be outside class

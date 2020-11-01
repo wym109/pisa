@@ -38,12 +38,6 @@ class dis_sys(Stage): # pylint: disable=invalid-name
         Below what energy (in GeV) to extrapolate
         Defaults to 100. CSMS not considered reliable below 50-100 GeV
 
-    input_names
-    output_names
-    debug_mode
-    calc_mode
-    apply_mode
-
     Notes
     -----
     Requires the events have the following keys ::
