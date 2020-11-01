@@ -31,7 +31,7 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.random_numbers import get_random_state
 from pisa.utils.stats import ALL_METRICS, CHI2_METRICS, LLH_METRICS
-
+from pisa.utils.comparisons import FTYPE_PREC
 
 __all__ = [
     'Param',
@@ -342,11 +342,12 @@ class Param:
         if srange is None:
             raise ValueError('Cannot rescale without a range specified'
                              ' for parameter %s' % self)
-        if rval < 0 or rval > 1:
+        if rval < 0 or rval > 1 + FTYPE_PREC:
             raise ValueError(
                 '%s: `rval`=%.15e, but cannot be outside [0, 1]'
                 % (self.name, rval)
             )
+        rval = np.min([1., rval])  # make exactly 1. if rounding error occurred
         srange0 = srange[0].m
         srange1 = srange[1].m
         self._value = (srange0 + (srange1 - srange0)*rval) * self._units

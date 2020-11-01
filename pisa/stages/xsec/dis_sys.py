@@ -17,6 +17,7 @@ from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.utils.fileio import from_file
 from pisa.utils.numba_tools import WHERE
+from pisa import ureg
 
 
 class dis_sys(Stage): # pylint: disable=invalid-name
@@ -57,7 +58,7 @@ class dis_sys(Stage): # pylint: disable=invalid-name
     def __init__(
         self,
         extrapolation_type='constant',
-        extrapolation_energy_threshold=100,
+        extrapolation_energy_threshold=100*ureg["GeV"],
         **std_kwargs,
     ):
         expected_params = (
@@ -73,7 +74,7 @@ class dis_sys(Stage): # pylint: disable=invalid-name
         assert self.calc_mode is None
 
         self.extrapolation_type = extrapolation_type
-        self.extrapolation_energy_threshold = extrapolation_energy_threshold 
+        self.extrapolation_energy_threshold = extrapolation_energy_threshold
 
     @profile
     def setup_function(self):
@@ -89,7 +90,7 @@ class dis_sys(Stage): # pylint: disable=invalid-name
         # set this to events mode, as we need the per-event info to calculate these weights
         self.data.representation = 'events'
 
-        lgE_min = np.log10(self.extrapolation_energy_threshold)
+        lgE_min = np.log10(self.extrapolation_energy_threshold.m_as("GeV"))
 
         for container in self.data:
 
