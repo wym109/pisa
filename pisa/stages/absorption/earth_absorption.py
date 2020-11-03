@@ -184,10 +184,9 @@ class earth_absorption(Stage):
             container.mark_changed('survival_prob')
         self.data.unlink_containers()
 
-    @profile
     def apply_function(self):
         for container in self.data:
-            vectorizer.imul(vals=container['survival_prob'], out=container['weights'])
+            container['weights'] *= container['survival_prob']
 
     def calculate_xsections(self, flav, nubar, energy):
         '''Calculates the cross-sections on isoscalar targets.
@@ -227,7 +226,6 @@ def calculate_integrated_rho(layer_dists, layer_densities, out):
         out[0] += layer_dists[i]*layer_densities[i]
     out[0] *= 1e5  # distances are converted from km to cm
 
-@guvectorize(signatures, '(),()->()', target=TARGET)
 def calculate_survivalprob(int_rho, xsection, out):
     """Calculate survival probability given layer distances,
     layer densities and (pre-computed) cross-sections.
@@ -248,5 +246,5 @@ def calculate_survivalprob(int_rho, xsection, out):
     # water column, where water has the density of 1 g/cm^3.
     # So the units work out to:
     # int_rho [cm] * 1 [g/cm^3] * xsection [cm^2] * 1 [mol/g] * Na [1/mol] = [ 1 ] (all units cancel)
-    out[0] = math.exp(-int_rho[0]*xsection[0]*Na)
+    out = np.exp(-int_rho*xsection*Na)
 

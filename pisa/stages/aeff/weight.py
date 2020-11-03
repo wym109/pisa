@@ -28,38 +28,16 @@ class weight(Stage):  # pylint: disable=invalid-name
     """
     def __init__(
         self,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        **std_kwargs,
     ):
         expected_params = ('livetime', 'weight_scale')
-        input_names = ()
-        output_names = ()
-
-        # what are the keys used from the inputs during apply
-
-        # what keys are added or altered for the outputs during apply
 
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
-        assert self.calc_mode is None
-
-        # right now this stage has no calc mode, as it just applies scales
-        # but it could if for example some smoothing will be performed!
 
     @profile
     def apply_function(self):
@@ -68,8 +46,5 @@ class weight(Stage):  # pylint: disable=invalid-name
         scale = weight_scale * livetime_s
 
         for container in self.data:
-            vectorizer.scale(
-                vals=container['weights'],
-                scale=scale,
-                out=container['weights'],
-            )
+            container['weights'] *= scale
+            container.mark_changed('weights')
