@@ -106,4 +106,4 @@ class kfold(Stage):
 
     def apply_function(self):
         for container in self.data:
-            vectorizer.imul(vals=container["fold_weight"], out=container["weights"])
+            container["weights"] *= container["fold_weight"]

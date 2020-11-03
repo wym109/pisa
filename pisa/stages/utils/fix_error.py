@@ -34,12 +34,13 @@ class fix_error(Stage):  # pylint: disable=invalid-name
         for container in self.data:
             container['frozen_errors'] = np.empty((container.size), dtype=FTYPE)
 
-    def apply_function(self):
-        for container in self.data:
-            vectorizer.assign(vals=container['frozen_errors'], out=container['errors'])
-            container.mark_changed('errors')
- 
     def compute_function(self):
         for container in self.data:
-            vectorizer.assign(vals=container["errors"], out=container["frozen_errors"])
+            container["frozen_errors"][:] = container["errors"]
             container.mark_changed('frozen_errors')
+
+    def apply_function(self):
+        for container in self.data:
+            container['errors'][:] = container['frozen_errors']
+            container.mark_changed('errors')
+ 

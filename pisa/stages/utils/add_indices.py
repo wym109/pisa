@@ -69,26 +69,19 @@ class add_indices(Stage):
         
         assert self.calc_mode == 'events', 'ERROR: calc specs must be set to "events for this module'
 
-        self.data.representation = 'events'
 
         for container in self.data:
-            # Generate a new container called bin_indices
-            container['bin_indices'] = np.empty((container.size), dtype=np.int64)
-  
+            self.data.representation = self.calc_mode
             variables_to_bin = []
             for bin_name in self.apply_mode.names:
                 variables_to_bin.append(container[bin_name])
 
-            new_array = lookup_indices(sample=variables_to_bin,
+            indices = lookup_indices(sample=variables_to_bin,
                                        binning=self.apply_mode)
 
-            new_array = new_array
-            np.copyto(src=new_array, dst=container["bin_indices"])
+            container['bin_indices'] = indices
 
-
+            self.data.representation = self.apply_mode
             for bin_i in range(self.apply_mode.tot_num_bins):
-                container.add_array_data(key='bin_{}_mask'.format(bin_i), 
-                                         data=(new_array == bin_i))
-
-
+                container['bin_{}_mask'.format(bin_i)] = new_array == bin_i
 

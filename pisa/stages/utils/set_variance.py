@@ -33,7 +33,6 @@ class set_variance(Stage):  # pylint: disable=invalid-name
             **std_kwargs,
         )
 
-        assert self.input_mode == "binned"
         assert self.calc_mode == "binned"
         assert self.output_mode == "binned"
 
@@ -83,7 +82,6 @@ FX = "f4" if FTYPE == np.float32 else "f8"
 
 def apply_floor(val, out):
     apply_floor_gufunc(FTYPE(val), out=out)
-    out
 
 @guvectorize([f"({FX}, {FX}[:])"], "() -> ()", target=TARGET)
 def apply_floor_gufunc(val, out):
@@ -91,7 +89,6 @@ def apply_floor_gufunc(val, out):
 
 def set_constant(val, out):
     set_constant_gufunc(FTYPE(val), out=out)
-    out
 
 @guvectorize([f"({FX}, {FX}[:])"], "() -> ()", target=TARGET)
 def set_constant_gufunc(val, out):
