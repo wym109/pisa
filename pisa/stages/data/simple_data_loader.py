@@ -59,14 +59,9 @@ class simple_data_loader(Stage):
                  data_dict,
                  neutrinos=True,
                  required_metadata=None,
-                 data=None,
-                 params=None,
-                 input_names=None,
-                 output_names=None,
-                 debug_mode=None,
-                 calc_mode=None,
-                 apply_mode=None,
                  fraction_events_to_keep=None,
+                 output_names=None,
+                 **std_kwargs,
                 ):
 
         # instantiation args that should not change
@@ -76,6 +71,7 @@ class simple_data_loader(Stage):
         self.neutrinos = neutrinos
         self.required_metadata = required_metadata
         self.fraction_events_to_keep = fraction_events_to_keep
+        self.output_names = output_names
 
         # Handle list inputs
         self.events_file = split(self.events_file)
@@ -89,14 +85,8 @@ class simple_data_loader(Stage):
 
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
 
         # check output names
@@ -156,7 +146,7 @@ class simple_data_loader(Stage):
 
             # make container
             container = Container(name)
-            container.data_specs = 'events'
+            container.representation = 'events'
             event_groups = self.evts.keys()
             if name not in event_groups:
                 raise ValueError(
@@ -166,7 +156,7 @@ class simple_data_loader(Stage):
 
             # add the events data to the container
             for key, val in self.evts[name].items():
-                container.add_array_data(key, val)
+                container[key] = val
 
             # create weights arrays:
             # * `initial_weights` as starting point (never modified)
@@ -174,22 +164,16 @@ class simple_data_loader(Stage):
             #   and modified by the stages
             # * user can also provide `initial_weights` in input file
             #TODO Maybe add this directly into EventsPi
-            if 'weights' in container.array_data:
+            if 'weights' in container.keys:
                 # raise manually to give user some helpful feedback
                 raise KeyError(
                     'Found an existing `weights` array in "%s"'
                     ' which would be overwritten. Consider renaming it'
                     ' to `initial_weights`.' % name
                 )
-            container.add_array_data(
-                'weights',
-                np.ones(container.size, dtype=FTYPE)
-            )
-            if 'initial_weights' not in container.array_data:
-                container.add_array_data(
-                    'initial_weights',
-                    np.ones(container.size, dtype=FTYPE)
-                )
+            container['weights'] = np.ones(container.size, dtype=FTYPE)
+            if 'initial_weights' not in container.keys:
+                container['initial_weights'] = np.ones(container.size, dtype=FTYPE)
 
             # add neutrino flavor information for neutrino events
             #TODO Maybe add this directly into EventsPi

@@ -247,10 +247,10 @@ class mceq_barr(Stage):
             # Grab containers here once to save time
             # TODO make spline generation script store splines directly in
             # terms of energy, not ln(energy)
-            true_log_energy = np.log(container["true_energy"].get("host"))
-            true_abs_coszen = np.abs(container["true_coszen"].get("host"))
-            nu_flux_nominal = container["nu_flux_nominal"].get("host")
-            gradients = container["gradients"].get("host")
+            true_log_energy = np.log(container["true_energy"])
+            true_abs_coszen = np.abs(container["true_coszen"])
+            nu_flux_nominal = container["nu_flux_nominal"]
+            gradients = container["gradients"]
             nubar = container["nubar"]
 
             #
@@ -288,7 +288,7 @@ class mceq_barr(Stage):
                 )
 
             # Tell the smart arrays we've changed the nominal flux values on the host
-            container.mark_changed("nu_flux_nominal").mark_changed("host")
+            container.mark_changed("nu_flux_nominal")
 
 
             #
@@ -327,7 +327,7 @@ class mceq_barr(Stage):
                     )
 
             # Tell the smart arrays we've changed the flux gradient values on the host
-            container.mark_changed("gradients").mark_changed("host")
+            container.mark_changed("gradients")
 
     @profile
     def compute_function(self):

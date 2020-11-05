@@ -330,26 +330,10 @@ def find_index_unsafe(val, bin_edges):
     return left_edge_idx - 1
 
 
-@cuda.jit
-def find_index_cuda(val, bin_edges, out):
-    """CUDA wrapper of `find_index` kernel e.g. for running tests on GPU
-
-    Parameters
-    ----------
-    val : array
-    bin_edges : array
-    out : array of same size as `val`
-        Results are stored to `out`
-
-    """
-    i = cuda.grid(1)
-    if i < val.size:
-        out[i] = find_index(val[i], bin_edges)
-
 @guvectorize(
     [f'({FX}[:], {FX}[:], {FX}[:], {FX}[:])'],
     '(), (j), (k) -> ()',
-    target=TARGET,
+    target='cpu',
 )
 def lookup_vectorized_1d(
     sample,
@@ -368,7 +352,7 @@ def lookup_vectorized_1d(
 @guvectorize(
     [f'({FX}[:], {FX}[:, :], {FX}[:], {FX}[:])'],
     '(), (j, d), (k) -> (d)',
-    target=TARGET,
+    target='cpu',
 )
 def lookup_vectorized_1d_arrays(
     sample,
