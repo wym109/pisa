@@ -526,7 +526,7 @@ class Container():
                 self[key] = out   
                 
             else:
-                raise NotImplementedError()
+                raise NotImplementedError(f"translating {src_representation} to {dest_representation}")
                 
         else:
             raise NotImplementedError()

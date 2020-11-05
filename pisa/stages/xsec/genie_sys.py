@@ -56,7 +56,6 @@ class genie_sys(Stage): # pylint: disable=invalid-name
             **std_kwargs,
         )
 
-        assert self.calc_mode is None
 
     def setup_function(self):
         '''

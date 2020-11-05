@@ -76,7 +76,7 @@ def resample(weights, old_sample, old_binning, new_sample, new_binning):
 
     # Now, for bin we have 1 or less counts, take the lookedup value instead:
     mask = flat_hist_counts > 1
-    new_hist_vals[mask] = flat_hist 
+    new_hist_vals[mask] = flat_hist[mask]
 
     return new_hist_vals
 

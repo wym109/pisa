@@ -65,8 +65,6 @@ class dis_sys(Stage): # pylint: disable=invalid-name
             **std_kwargs,
         )
 
-        assert self.calc_mode is None
-
         self.extrapolation_type = extrapolation_type
         self.extrapolation_energy_threshold = extrapolation_energy_threshold
 
