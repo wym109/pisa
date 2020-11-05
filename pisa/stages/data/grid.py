@@ -27,38 +27,22 @@ class grid(Stage):
     """
     def __init__(
         self,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
         entity="midpoints",
+        output_names=None,
+        **std_kwargs,
     ):
         expected_params = ()
 
 
         # store args
-        self.entity = entity
+        self.entity = entioty
+        self.output_names = output_names
 
         # init base class
         super(grid, self).__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
-
-        # definition must be a grid
-        assert self.input_mode == 'binned'
-
-        # doesn't calculate anything
-        assert self.calc_mode is None
 
     def setup_function(self):
 
