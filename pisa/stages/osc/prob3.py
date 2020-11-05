@@ -342,11 +342,12 @@ class prob3(Stage):
 
     def apply_function(self):
 
-        self.data.representation = self.calc_mode
-        for container in self.data:
-            container['oscillated_flux'] = (container['nu_flux'][:,0] * container['prob_e']) + (container['nu_flux'][:,1] * container['prob_mu'])
+        # maybe speed up like this?
+        #self.data.representation = self.calc_mode
+        #for container in self.data:
+        #    container['oscillated_flux'] = (container['nu_flux'][:,0] * container['prob_e']) + (container['nu_flux'][:,1] * container['prob_mu'])
 
-        self.data.representation = self.apply_mode
+        #self.data.representation = self.apply_mode
 
         # update the outputted weights
         for container in self.data:
