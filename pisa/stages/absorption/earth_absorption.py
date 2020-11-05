@@ -20,8 +20,6 @@ from pisa import ureg
 from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.stages.osc.layers import Layers
-from pisa.utils.numba_tools import WHERE
-from pisa.utils import vectorizer
 from pisa.utils.resources import find_resource
 
 __author__ = 'A. Trettin'
@@ -171,6 +169,7 @@ class earth_absorption(Stage):
             self.data.link_containers('numubar', ['numubar_cc', 'numubar_nc'])
             self.data.link_containers('nutau', ['nutau_cc', 'nutau_nc'])
             self.data.link_containers('nutaubar', ['nutaubar_cc', 'nutaubar_nc'])
+
         for container in self.data:
             container['xsection'] = self.calculate_xsections(container['flav'],
                                                              container['nubar'],

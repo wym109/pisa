@@ -47,4 +47,3 @@ class weight(Stage):  # pylint: disable=invalid-name
 
         for container in self.data:
             container['weights'] *= scale
-            container.mark_changed('weights')

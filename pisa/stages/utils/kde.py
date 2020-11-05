@@ -51,9 +51,6 @@ class kde(Stage):
             **std_kargs,
         )
 
-        assert self.input_mode == 'events'
-        assert self.output_mode == 'binned'
-
     @profile
     def apply(self):
         # this is special, we want the actual event weights in the kde
@@ -80,4 +77,3 @@ class kde(Stage):
 
             self.data.representation = self.apply_mode
             container['weights'] = kde_map
-            container.mark_changed('weights')

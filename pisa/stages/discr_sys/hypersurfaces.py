@@ -18,11 +18,8 @@ from pisa import FTYPE, TARGET
 from pisa.core.stage import Stage
 from pisa.core.binning import MultiDimBinning
 from pisa.utils.log import logging
-from pisa.utils.numba_tools import WHERE
-from pisa.utils import vectorizer
 import pisa.utils.hypersurface as hs
 from pisa.utils.log import set_verbosity, Levels
-from pisa.utils.profiler import line_profile
 #set_verbosity(Levels.DEBUG)
 
 __all__ = ["hypersurfaces",]
@@ -186,7 +183,6 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
         # Unlink the containers again
         self.data.unlink_containers()
 
-    @line_profile
     def apply_function(self):
 
         for container in self.data:
@@ -199,39 +195,11 @@ class hypersurfaces(Stage): # pylint: disable=invalid-name
                     logging.trace('WARNING: running stage in events mode. Hypersurface error propagation will be IGNORED.')
                 
                 elif self.propagate_uncertainty:
-                    calc_uncertainty(container["weights"],
-                                     container["hs_scales_uncertainty"],
-                                     container["errors"],
-                                    )
-                    container.mark_changed('errors')
+                    container["errors"] = container["weights"] * container["hs_scales_uncertainty"]
 
                 else:
-                    vectorizer.imul(container["hs_scales"], out=container["errors"])
+                    container["errors"] *= container["hs_scales"]
                     container.mark_changed('errors')
 
             # Update weights according to hypersurfaces
-            propagate_hs_scales(container["weights"],
-                                container["hs_scales"],
-                                container["weights"])
-
-            container.mark_changed('weights')
-
-
-if FTYPE == np.float32:
-    _SIGNATURE = ['(f4[:], f4[:], f4[:])']
-else:
-    _SIGNATURE = ['(f8[:], f8[:], f8[:])']
-@guvectorize(_SIGNATURE, '(),()->()', target=TARGET)
-def calc_uncertainty(weight, scale_uncertainty, out):
-    '''vectorized error propagation'''
-    out[0] = weight[0]*scale_uncertainty[0]
-
-
-if FTYPE == np.float32:
-    _SIGNATURE = ['(f4[:], f4[:], f4[:])']
-else:
-    _SIGNATURE = ['(f8[:], f8[:], f8[:])']
-@guvectorize(_SIGNATURE, '(),()->()', target=TARGET)
-def propagate_hs_scales(weight, hs_scales, out):
-    '''vectorized error propagation'''
-    out[0] = max(0., weight[0]*hs_scales[0])
+            container["weights"] = np.clip(container["weights"] * container["hs_scales"], a_min=0, a_max=np.inf)
