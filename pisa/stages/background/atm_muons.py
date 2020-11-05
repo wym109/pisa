@@ -59,13 +59,6 @@ class atm_muons(Stage):
             'delta_gamma_mu'
         )
 
-        # input_names should specify the key that the muon data can be found under in the input file
-        if input_names is None :
-            input_names = ("muons",)
-        assert len(input_names) == 1
-
-        self.input_names = input_names
-
         # init base class
         super().__init__(
             expected_params=expected_params,
@@ -73,13 +66,9 @@ class atm_muons(Stage):
         )
 
 
-
     def setup_function(self):
 
         self.data.representation = self.calc_mode
-
-        # Check there are muons in the data
-        assert self.input_names[0] in self.data.names, "No `%s` events found in the input data, only found %s" % (self.input_names[0],self.data.names)
 
         # Create the primary uncertainties spline that will be used for
         # re-weighting the muon flux
@@ -87,16 +76,15 @@ class atm_muons(Stage):
 
         # Get variable that the flux uncertainties are spline w.r.t
         rw_variable = self.params['delta_gamma_mu_variable'].value
-        #assert rw_variable in self.data[self.input_names[0]], "Cannot find the variable `%s` in the muon container, cannot interpret spline" % rw_variable #TODO Fix in container.py, `in` doesn't work...
 
-        # Get primary CR systematic spline (using correcr FTYPE)
-        self.rw_array = self.prim_unc_spline(self.data[self.input_names[0]][rw_variable]).astype(FTYPE)
+        for container in self.data:
+            # Get primary CR systematic spline
+            container['rw_array'] = self.prim_unc_spline(container[rw_variable])
 
-        # Reweighting term is positive-only by construction, so normalise
-        # it by shifting the whole array down by a normalisation factor
-        norm = FTYPE(sum(self.rw_array)) / FTYPE(len(self.rw_array))
-        self.cr_rw_array = self.rw_array - norm
-        #TODO need option to store this on the GPU
+            # Reweighting term is positive-only by construction, so normalise
+            # it by shifting the whole array down by a normalisation factor
+            norm = container['rw_array'].sum() / container['rw_array'].size
+            container['cr_rw_array'] = container['rw_array'] - norm
 
 
     @profile
@@ -104,24 +92,16 @@ class atm_muons(Stage):
 
         #self.data.representation = self.calc_mode
 
-        #TODO vectorize this using numba (see e.g. prob3.py or genie_sys.py), which will also give GPU support
-
         # Apply muon normalisation/scaling
         atm_muon_scale = self.params['atm_muon_scale'].value.m_as("dimensionless")
 
         # Compute the weight modification due to the muon flux systematic
         cr_rw_scale = self.params['delta_gamma_mu'].value.m_as("dimensionless")
-        weight_mod = 1 + (cr_rw_scale*self.cr_rw_array)
-
-        #TODO Store the flux in the container
 
         # Write to the output container
-        apply_atm_muon_sys(weight_mod,
-                        atm_muon_scale,
-                        out=self.data[self.input_names[0]]['weights'],
-                       )
-        self.data[self.input_names[0]].mark_changed('weights')
-
+        for container in self.data:
+            weight_mod = 1 + (cr_rw_scale * container['cr_rw_array'])
+            container['weights'] *= np.clip(weight_mod * atm_muon_scale, a_min=0, a_max=np.inf)
 
 
     def _make_prim_unc_spline(self):
@@ -192,14 +172,3 @@ class atm_muons(Stage):
         )
 
         return muon_uncf
-
-
-# Define the vectorised weight modification (makes it fast)
-if FTYPE == np.float64:
-    signature = '(f8, f8, f8[:])'
-else:
-    signature = '(f4, f4, f4[:])'
-
-@guvectorize([signature], '(),()->()', target=TARGET)
-def apply_atm_muon_sys(weight_mod,atm_muon_scale,out):
-    out[0] *= max(0, weight_mod * atm_muon_scale)
