@@ -35,7 +35,7 @@ class grid(Stage):
 
 
         # store args
-        self.entity = entioty
+        self.entity = entity
         self.output_names = output_names
 
         # init base class

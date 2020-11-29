@@ -50,7 +50,7 @@ class adhoc_sys(Stage):  # pylint: disable=invalid-name
         # init base class
         super().__init__(
             expected_params=expected_params,
-            **atd_kwargs,
+            **std_kwargs,
         )
 
         assert self.calc_mode == "events"

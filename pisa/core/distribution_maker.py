@@ -190,7 +190,7 @@ class DistributionMaker(object):
 
     @profile.setter
     def profile(self, value):
-        for pipelines in self.pipeline:
+        for pipeline in self.pipelines:
             pipeline.profile = value
         self._profile = value
 

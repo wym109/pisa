@@ -9,33 +9,27 @@ from __future__ import absolute_import, division
 from collections.abc import Sequence
 from collections import OrderedDict, Mapping
 from copy import deepcopy
+from itertools import product
+import re
 import sys
 import time
 
 import numpy as np
-from scipy.optimize import OptimizeWarning
+import scipy.optimize as optimize
 
-from pisa import ureg, FTYPE
+from pisa import EPSILON, FTYPE, ureg
 from pisa.core.detectors import Detectors
-from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
-from pisa.utils.config_parser import parse_minimizer_config
-from pisa.utils.fitting import apply_fit_settings
-from pisa.utils.fisher_matrix import get_fisher_matrix
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils.minimization import (
-    LOCAL_MINIMIZERS_WITH_DEFAULTS,
-    Counter, display_minimizer_header, minimizer_x0_bounds,
-    _run_minimizer, set_minimizer_defaults, validate_minimizer_settings
-)
-from pisa.utils.pull_method import calculate_pulls
-from pisa.utils.random_numbers import get_random_state
-from pisa.utils.stats import (
-    METRICS_TO_MAXIMIZE, METRICS_TO_MINIMIZE, it_got_better
-)
+from pisa.core.param import ParamSet
+from pisa.utils.comparisons import recursiveEquality
+from pisa.utils.log import logging
+from pisa.utils.fileio import to_file
+from pisa.utils.stats import METRICS_TO_MAXIMIZE, METRICS_TO_MINIMIZE
 
 
-__all__ = ['ANALYSIS_METHODS', 'Analysis', 't23_octant']
+__all__ = ['MINIMIZERS_USING_SYMM_GRAD',
+           'set_minimizer_defaults', 'validate_minimizer_settings',
+           'Counter', 'Analysis']
 
 __author__ = 'J.L. Lanfranchi, P. Eller, S. Wren, E. Bourbeau'
 
@@ -53,14 +47,6 @@ __license__ = '''Copyright (c) 2014-2020, The IceCube Collaboration
  See the License for the specific language governing permissions and
  limitations under the License.'''
 
-ANALYSIS_METHODS = ('minimize', 'pull')
-"""Allowed parameter fitting methods."""
-
-# Define names that users can specify in configs such that the eval of those
-# strings works.
-numpy = np # pylint: disable=invalid-name
-inf = np.inf # pylint: disable=invalid-name
-units = ureg # pylint: disable=invalid-name
 
 MINIMIZERS_USING_SYMM_GRAD = ('l-bfgs-b', 'slsqp')
 """Minimizers that use symmetrical steps on either side of a point to compute
@@ -112,7 +98,7 @@ def set_minimizer_defaults(minimizer_settings):
 
     sqrt_ftype_eps = np.sqrt(np.finfo(FTYPE).eps)
     opt_defaults = {}
-    method = minimizer_settings['method'].lower()
+    method = minimizer_settings['method']['value'].lower()
 
     if method == 'l-bfgs-b' and FTYPE == np.float64:
         # From `scipy.optimize.lbfgsb._minimize_lbfgsb`
@@ -138,18 +124,109 @@ def set_minimizer_defaults(minimizer_settings):
         raise ValueError('Unhandled minimizer "%s" / FTYPE=%s'
                          % (method, FTYPE))
 
-    opt_defaults.update(new_minimizer_settings['options'])
+    opt_defaults.update(new_minimizer_settings['options']['value'])
 
-    new_minimizer_settings['options'] = opt_defaults
+    new_minimizer_settings['options']['value'] = opt_defaults
 
     # Populate the descriptions with something
-    #for opt_name in new_minimizer_settings['options']:
-    #    if opt_name not in new_minimizer_settings['options']['desc']:
-    #        new_minimizer_settings['options']['desc'] = 'no desc'
+    for opt_name in new_minimizer_settings['options']['value']:
+        if opt_name not in new_minimizer_settings['options']['desc']:
+            new_minimizer_settings['options']['desc'] = 'no desc'
 
     return new_minimizer_settings
 
-def t23_octant(fit_info):
+
+# TODO: add Nelder-Mead, as it was used previously...
+def validate_minimizer_settings(minimizer_settings):
+    """Validate minimizer settings.
+
+    See source for specific thresholds set.
+
+    Parameters
+    ----------
+    minimizer_settings : dict
+
+    Raises
+    ------
+    ValueError
+        If any minimizer settings are deemed to be invalid.
+
+    """
+    ftype_eps = np.finfo(FTYPE).eps
+    method = minimizer_settings['method']['value'].lower()
+    options = minimizer_settings['options']['value']
+    if method == 'l-bfgs-b':
+        must_have = ('maxcor', 'ftol', 'gtol', 'eps', 'maxfun', 'maxiter',
+                     'maxls')
+        may_have = must_have + ('args', 'jac', 'bounds', 'disp', 'iprint',
+                                'callback')
+    elif method == 'slsqp':
+        must_have = ('maxiter', 'ftol', 'eps')
+        may_have = must_have + ('args', 'jac', 'bounds', 'constraints',
+                                'iprint', 'disp', 'callback')
+
+    missing = set(must_have).difference(set(options))
+    excess = set(options).difference(set(may_have))
+    if missing:
+        raise ValueError('Missing the following options for %s minimizer: %s'
+                         % (method, missing))
+    if excess:
+        raise ValueError('Excess options for %s minimizer: %s'
+                         % (method, excess))
+
+    eps_msg = '%s minimizer option %s(=%e) is < %d * %s_EPS(=%e)'
+    eps_gt_msg = '%s minimizer option %s(=%e) is > %e'
+    fp64_eps = np.finfo(np.float64).eps
+
+    if method == 'l-bfgs-b':
+        err_lim, warn_lim = 2, 10
+        for s in ['ftol', 'gtol']:
+            val = options[s]
+            if val < err_lim * ftype_eps:
+                raise ValueError(eps_msg % (method, s, val, err_lim, 'FTYPE',
+                                            ftype_eps))
+            if val < warn_lim * ftype_eps:
+                logging.warning(eps_msg, method, s, val, warn_lim, 'FTYPE', ftype_eps)
+
+        val = options['eps']
+        err_lim, warn_lim = 1, 10
+        if val < err_lim * fp64_eps:
+            raise ValueError(eps_msg % (method, 'eps', val, err_lim, 'FP64',
+                                        fp64_eps))
+        if val < warn_lim * ftype_eps:
+            logging.warning(eps_msg, method, 'eps', val, warn_lim, 'FTYPE', ftype_eps)
+
+        err_lim, warn_lim = 0.25, 0.1
+        if val > err_lim:
+            raise ValueError(eps_gt_msg % (method, 'eps', val, err_lim))
+        if val > warn_lim:
+            logging.warning(eps_gt_msg, method, 'eps', val, warn_lim)
+
+    if method == 'slsqp':
+        err_lim, warn_lim = 2, 10
+        val = options['ftol']
+        if val < err_lim * ftype_eps:
+            raise ValueError(eps_msg % (method, 'ftol', val, err_lim, 'FTYPE',
+                                        ftype_eps))
+        if val < warn_lim * ftype_eps:
+            logging.warning(eps_msg, method, 'ftol', val, warn_lim, 'FTYPE', ftype_eps)
+
+        val = options['eps']
+        err_lim, warn_lim = 1, 10
+        if val < err_lim * fp64_eps:
+            raise ValueError(eps_msg % (method, 'eps', val, 1, 'FP64',
+                                        fp64_eps))
+        if val < warn_lim * ftype_eps:
+            logging.warning(eps_msg, method, 'eps', val, warn_lim, 'FP64', fp64_eps)
+
+        err_lim, warn_lim = 0.25, 0.1
+        if val > err_lim:
+            raise ValueError(eps_gt_msg % (method, 'eps', val, err_lim))
+        if val > warn_lim:
+            logging.warning(eps_gt_msg, method, 'eps', val, warn_lim)
+
+
+def check_t23_octant(fit_info):
     """Check that theta23 is in the first or second octant.
 
     Parameters
@@ -167,7 +244,6 @@ def t23_octant(fit_info):
         second octant (`octant_index`=1)
 
     """
-
     valid_octant_indices = (0, 1)
 
     theta23 = fit_info['params'].theta23.value
@@ -180,111 +256,94 @@ def t23_octant(fit_info):
     return octant_index
 
 
-def get_separate_t23_octant_params(hypo_maker, inflection_point=45.0*ureg.deg,
-                                   target_tolerance=0.1*ureg.deg):
-    """This function creates versions of the theta23 param that are confined to
-    a single octant. It does this for both octant cases. This is used to allow
-    fits to be done where only one of the octants is allowed. The fit can then
-    be done for the two octant cases and compared to find the best fit.
+
+def get_separate_t23_octant_params(hypo_maker, inflection_point) :
+    '''
+    This function creates versions of the theta23 param that are confined to 
+    a single octant. It does this for both octant cases. This is used to allow 
+    fits to be done where only one of the octants is allowed. The fit can then 
+    be done for the two octant cases and compared to find the best fit. 
 
     Parameters
     ----------
     hypo_maker : DistributionMaker or Detector
         The hypothesis maker being used by the fitter
-
     inflection_point : quantity
         Point distinguishing between the two octants, e.g. 45 degrees
-        (though it can be used for any arbitrary inflection point)
-
-    target_tolerance : None or quantity
-        Target for deviation of fit starting point from inflection point
-        (e.g., to start clearly in one over the other octant)
 
     Returns
     -------
     theta23_orig : Param
         theta23 param as it was before applying the octant separation
-
-    theta23_first_octant : Param
+    theta23_case1 : Param
         theta23 param confined to first octant
-
-    theta23_second_octant : Param
+    theta23_case2 : Param
         theta23 param confined to second octant
+    '''
 
-    """
-
-    # Reset theta23 before starting -> the octant in which the nominal value
-    # of theta23 lies is what theta23 is set to first
+    # Reset theta23 before starting
     theta23 = hypo_maker.params.theta23
     theta23.reset()
 
-    # Store the original parameter before we mess with it
+    # Store the original theat23 param before we mess with it
     theta23_orig = deepcopy(theta23)
 
-    # Get the octant definition (don't need to convert units beforehand)
-    if (min(theta23.range) > inflection_point or
-        max(theta23.range) < inflection_point):
-        raise ValueError(
-            "Range of theta23 needs to encompass both octants for"
-            " separate-octant fits to work!"
+    # Get the octant definition
+    octants = (
+        (theta23.range[0], inflection_point) ,
+        (inflection_point, theta23.range[1])
         )
 
-    octant_ranges = (
-        (min(theta23.range), inflection_point),
-        (inflection_point, max(theta23.range))
-    )
+    # If theta23 is maximal (e.g. the transition between octants) or very close 
+    # to it, offset it slightly to be clearly in one octant (note that fit can 
+    # still move the value back to maximal). The reason for this is that 
+    # otherwise checks on the parameter bounds (which include a margin for 
+    # minimizer tolerance) can an throw exception.
+    tolerance = 0.1 * ureg.degree
+    dist_from_inflection = theta23.value - inflection_point 
+    if np.abs(dist_from_inflection) < tolerance :
+        sign = -1. if dist_from_inflection < 0. else +1. # Note this creates +ve shift also for theta == 45 (arbitary)
+        theta23.value = inflection_point + (sign * tolerance)
 
-    theta23_first_octant = deepcopy(theta23)
-    theta23_second_octant = deepcopy(theta23)
+    # Store the cases
+    theta23_case1 = deepcopy(theta23)
+    theta23_case2 = deepcopy(theta23)
 
-    theta23_first_octant.range = octant_ranges[0]
-    theta23_second_octant.range = octant_ranges[1]
+    # Get case 1, e.g. the current octant
+    case1_octant_index = 0 if theta23_case1.value < inflection_point else 1
+    theta23_case1.range = octants[case1_octant_index]
 
-    # If theta23 is very close to maximal (e.g. the transition between octants)
-    # offset it slightly to be clearly in one octant (note that fit can still
-    # move the value back to maximal).  The reason for this is that
-    # otherwise checks on the parameter bounds (which include a margin for
-    # minimizer tolerance) can throw an exception.
-    if target_tolerance is not None:
-        if np.isclose(
-            theta23.value.m_as("degree"), inflection_point.m_as("degree"),
-            atol=target_tolerance.m_as("degree")
-        ):
-            if theta23.value > inflection_point:
-                tgt_val = inflection_point + target_tolerance
-                # Set the value to the smaller among: target and upper bound.
-                # If upper bound is smaller, use a 1% safety margin.
-                theta23.value = min(
-                    (tgt_val).to(theta23.units),
-                    max(theta23.range) - 0.01 * (max(theta23.range) - inflection_point.to(theta23.units))
-                )
-            else:
-                # i.e., if the current value of theta23 is maximal,
-                # we target a seed in the lower octant
-                tgt_val = inflection_point - target_tolerance
-                # Set the value to the larger among: target and lower bound.
-                # If lower bound is larger, use a 1% safety margin.
-                theta23.value = max(
-                    (tgt_val).to(theta23.units),
-                    min(theta23.range) + 0.01 * (-min(theta23.range) + inflection_point.to(theta23.units))
-                )
+    # Also get case 2, e.g. the other octant
+    case2_octant_index = 0 if case1_octant_index == 1 else 1
+    theta23_case2.value = 2*inflection_point - theta23_case2.value
+    theta23_case2.range = octants[case2_octant_index]
 
-    other_octant_value = 2 * inflection_point - theta23.value
+    return theta23_orig, theta23_case1, theta23_case2
 
-    if theta23.value > inflection_point:
-        # no need to set value of `theta23_second_octant`
-        theta23_first_octant.value = other_octant_value
-    else:
-        # no need to set value of `theta23_first_octant`
-        theta23_second_octant.value = other_octant_value
 
-    logging.debug(
-        "Will probe two discrete theta23 ranges: %s and %s. "
-        " The two corresponding seeds are: %s and %s"
-        % (theta23_first_octant.range, theta23_second_octant.range,
-           theta23_first_octant.value, theta23_second_octant.value)
-    )
-    return theta23_orig, theta23_first_octant, theta23_second_octant
+# TODO: move this to a central location prob. in utils
+class Counter(object):
+    """Simple counter object for use as a minimizer callback."""
+    def __init__(self, i=0):
+        self._count = i
+
+    def __str__(self):
+        return str(self._count)
+
+    def __repr__(self):
+        return str(self)
+
+    def __iadd__(self, inc):
+        self._count += inc
+
+    def reset(self):
+        """Reset counter"""
+        self._count = 0
+
+    @property
+    def count(self):
+        """int : Current count"""
+        return self._count
 
 
 class Analysis(object):
@@ -300,240 +359,24 @@ class Analysis(object):
     """
     def __init__(self):
         self._nit = 0
-        self.counter = Counter()
 
-    @staticmethod
-    def _calculate_metric_val(data_dist, hypo_asimov_dist, hypo_maker,
-                              metric, blind, external_priors_penalty=None):
-        """Calculates the value of the metric given data and hypo.
+    def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
+                 minimizer_settings, reset_free=True, 
+                 check_octant=True, fit_octants_separately=True,
+                 check_ordering=False, other_metrics=None,
+                 blind=False, pprint=True, external_priors_penalty=None):
+        """Fitter "outer" loop: If `check_octant` is True, run
+        `fit_hypo_inner` starting in each octant of theta23 (assuming that
+        is a param in the `hypo_maker`). Otherwise, just run the inner
+        method once.
 
-        Should not be called externally.
-
-        Parameters
-        ----------
-        data_dist : Map, MapSet, or sequence of Map/MapSet
-
-        hypo_asimov_dist : Map, MapSet, or sequence of Map/MapSet
-
-        hypo_maker : DistributionMaker or Detectors
-
-        metric : sequence of str
-
-        blind : bool
-
-        external_priors_penalty : func
-
-        Returns
-        -------
-        metric_val : float
-
-        """
-
-        try:
-            if isinstance(hypo_maker, Detectors):
-                metric_val = 0
-                for i in range(len(hypo_maker._distribution_makers)): # pylint: disable=protected-access
-                    metric_stats = data_dist[i].metric_total(
-                        expected_values=hypo_asimov_dist[i], metric=metric[i]
-                    )
-                    metric_val += metric_stats
-
-                # TODO: is this really just done silently? document?
-                metric_priors = hypo_maker.params.priors_penalty(
-                    metric=metric[0]
-                ) # uses just the "first" metric for prior
-                metric_val += metric_priors
-
-            else: # DistributionMaker object
-                metric_val = (
-                    data_dist.metric_total(
-                        expected_values=hypo_asimov_dist, metric=metric[0]
-                    )
-                    + hypo_maker.params.priors_penalty(metric=metric[0])
-                )
-
-            # function assumed to work the same way for `Detectors` and
-            # `DistributionMaker`
-            if external_priors_penalty is not None:
-                metric_val += external_priors_penalty(
-                    hypo_maker=hypo_maker, metric=metric[0]
-                )
-
-        except Exception as e:
-            if blind:
-                logging.error('Failed when computing metric.')
-            else:
-                logging.error(
-                    'Failed when computing metric with free params %s',
-                    hypo_maker.params.free
-                )
-                logging.error(str(e))
-            raise
-
-        return metric_val
-
-    # TODO: keep this or leave for individual analyser to implement?
-    def fit_from_startpoints(
-            self, data_dist, hypo_maker, hypo_param_selections,
-            extra_param_selections, metric, startpoints=None,
-            randomize_params=None, nstart=None, random_state=None,
-            fit_settings=None, minimizer_settings=None, other_metrics=None,
-            check_octant=True, fit_octants_separately=False,
-            blind=False, pprint=True, reset_free=False
-    ):
-        """Rerun fit either from `nstart` random start points (seeds) or
-        definite start points defined in `startpoints`. See
-        `optimize_discrete_selections for explanations of the various
-        parameters.
+        Note that prior to running the fit, the `hypo_maker` has
+        `hypo_param_selections` applied and its free parameters are reset to
+        their nominal values.
 
         Parameters
         ----------
-        data_dist : MapSet or sequence of MapSets
-
-        hypo_maker : Detectors, DistributionMaker or instantiable thereto
-
-        hypo_param_selections : None, string, or sequence of strings
-
-        extra_param_selections : None, string, or sequence of strings
-
-        metric : string or iterable of strings
-
-        startpoints : None or sequence of (string, quantity) tuples
-            Each tuple must consist of a parameter name and an
-            associated value. The parameter names must correspond
-            to `hypo_maker.params.free.names`
-
-        randomize_params : None or sequence of string
-            Names of parameters to randomize (if used together with
-            `nstart` > 0). Must be a subset of
-            `hypo_maker.params.free.names`. All remaining free
-            parameters' start values will not be randomized.
-
-        nstart : None or int
-            No. of different start points from which to run the fit.
-
-        random_state : random_state or instantiable thereto
-
-        fit_settings : string or dict
-
-        minimizer_settings : string or dict
-
-        other_metrics : None, string, or list of strings
-
-        check_octant : bool
-
-        fit_octants_separately : bool
-
-        blind : bool
-
-        pprint : bool
-
-        reset_free : bool
-
-
-        Returns
-        -------
-        fit_infos : sequence of dict
-            One dictionary per fit, as returned by
-            `optimize_discrete_selections`
-
-        """
-
-        if not startpoints and not nstart:
-            # covers cases such as None, empty list, 0 etc.
-            raise ValueError(
-                'Provide either list of start points or number of points!'
-            )
-        if startpoints and nstart:
-            raise ValueError(
-                'Either provide list of start points or number of points,'
-                ' but not both!'
-            )
-        if startpoints:
-            randomize = False
-            if not isinstance(startpoints, Sequence):
-                raise TypeError('`startpoints` needs to be a sequence.'
-                                ' Got %s instead.' % type(startpoints))
-
-        elif nstart:
-            randomize = True
-            if not np.issubdtype(type(nstart), np.int):
-                raise TypeError('`nstart` needs to be an integer.'
-                                ' Got %s instead.' % type(nstart))
-
-        fit_infos = []
-        start_t = time.time()
-        nruns = nstart if randomize else len(startpoints)
-        for irun in range(nruns):
-            if randomize:
-                # each run uses initial random state moved forward by irun
-                if randomize_params is not None:
-                    # just randomise specified parameters
-                    for pname in randomize_params:
-                        hypo_maker.params[pname].randomize(
-                            random_state=get_random_state(random_state, jumpahead=irun)
-                        )
-                else:
-                    # randomise all free
-                    hypo_maker.params.randomize_free(
-                        random_state=get_random_state(random_state, jumpahead=irun)
-                    )
-            else:
-                if len(startpoints[irun]) != len(hypo_maker.params.free):
-                    raise ValueError(
-                        'You have to provide as many start points as there'
-                        ' are free parameters!'
-                    )
-                for pname, pval in startpoints[irun]:
-                    if not pname in hypo_maker.params.free:
-                        raise ValueError(
-                            'Param "%s" not among set of free hypothesis'
-                            ' parameters!'
-                        )
-                    hypo_maker.params[pname].value = pval
-            logging.debug('Starting fit from point %s.' % hypo_maker.params.free)
-            irun_fit_info = self.optimize_discrete_selections(
-                data_dist=data_dist,
-                hypo_maker=hypo_maker,
-                hypo_param_selections=hypo_param_selections,
-                extra_param_selections=extra_param_selections,
-                metric=metric,
-                fit_settings=fit_settings,
-                reset_free=reset_free,
-                check_octant=check_octant,
-                fit_octants_separately=fit_octants_separately,
-                minimizer_settings=minimizer_settings,
-                other_metrics=other_metrics,
-                blind=blind,
-                pprint=pprint
-            )
-            fit_infos.append(irun_fit_info)
-
-        end_t = time.time()
-        multi_run_fit_t = end_t - start_t
-
-        logging.info(
-            'Total time to fit from all start points: %8.4f s.'
-            % multi_run_fit_t
-        )
-
-        return fit_infos
-
-
-    def optimize_discrete_selections(
-            self, data_dist, hypo_maker, hypo_param_selections,
-            extra_param_selections, metric, fit_settings=None,
-            minimizer_settings=None, check_octant=True,
-            fit_octants_separately=False, reset_free=True,
-            randomize_params=None, random_state=None,
-            other_metrics=None, blind=False, pprint=True,
-            external_priors_penalty=None
-    ):
-        """Outermost optimization wrapper: multiple discrete selections.
-
-        Parameters
-        ----------
-        data_dist : MapSet or sequence of MapSets
+        data_dist : MapSet or List of MapSets
             Data distribution(s). These are what the hypothesis is tasked to
             best describe during the optimization process.
 
@@ -550,52 +393,40 @@ class Analysis(object):
             instance of a DistributionMaker to generate distributions from
             different hypotheses.
 
-        extra_param_selections : None, string, or sequence of strings
-            These will be combined with `hypo_param_selections` and
-            optimized (e.g. for discrete hypotheses, such as NMO, or for
-            testing only discrete values/ranges of some set of parameters).
-            Note that none of these selections may be part of
-            `hypo_param_selections`.
-
         metric : string or iterable of strings
             The metric to use for optimization. Valid metrics are found in
             `VALID_METRICS`. Note that the optimized hypothesis also has this
             metric evaluated and reported for each of its output maps.
 
-        fit_settings : string or dict
-            Location of fit settings config or parsed dictionary.
-
         minimizer_settings : string or dict
-            Location of minimizer settings config or parsed dictionary.
 
         check_octant : bool
             If theta23 is a parameter to be used in the optimization (i.e.,
             free), the fit will be re-run in the second (first) octant if
             theta23 is initialized in the first (second) octant.
 
+        reset_free : bool
+            Resets all free parameters to values defined in stages when starting a fit
+
         fit_octants_separately : bool
             If 'check_octant' is set so that the two octants of theta23 are
             individually checked, this flag enforces that each theta23 can
-            only vary within the octant currently being checked (e.g. the
-            minimizer cannot swap octants).
+            only vary within the octant currently being checked (e.g. the 
+            minimizer cannot swap octants). 
 
-        reset_free : bool
-            Resets all free parameters to values defined in stages when
-            starting a fit.
-
-        randomize_params : sequence of str or bool
-            Names of params whose start values are to be randomized or
-            `True`/`False`
-
-        random_state : random_state or instantiable thereto
-            Initial random state for randomization of parameter start values.
+        check_ordering : bool
+            If the ordering is not in the hypotheses already being tested, the
+            fit will be run in both orderings.
 
         other_metrics : None, string, or list of strings
             After finding the best fit, these other metrics will be evaluated
             for each output that contributes to the overall fit. All strings
             must be valid metrics, as per `VALID_METRICS`, or the
             special string 'all' can be specified to evaluate all
-            VALID_METRICS.
+            VALID_METRICS..
+
+        pprint : bool
+            Whether to show live-update of minimizer progress.
 
         blind : bool or int
             Whether to carry out a blind analysis. If True or 1, this hides actual
@@ -603,265 +434,103 @@ class Analysis(object):
             Hessian, etc.) from ending up in logfiles. If given an integer > 1, the
             fitted parameters are also prevented from being stored in fit info
             dictionaries.
-        
-        pprint : bool
-            Whether to show live-update of minimizer progress.
 
         external_priors_penalty : func
             User defined prior penalty function. Adds an extra penalty
-            to the metric that is fit, depending on the input function.
+            to the metric that is minimized, depending on the input function.
 
 
         Returns
         -------
-        best_fit_info : OrderedDict (see _fit_hypo_inner method for details of
+        best_fit_info : OrderedDict (see fit_hypo_inner method for details of
             `fit_info` dict)
-
+        alternate_fits : list of `fit_info` from other fits run
 
         """
+        if isinstance(metric, str):
+            metric = [metric]
 
-        if (
-            isinstance(extra_param_selections, str) or not
-            isinstance(extra_param_selections, Sequence)
-        ):
-            extra_param_selections = [extra_param_selections]
+        if ( not check_octant ) and fit_octants_separately :
+            raise ValueError("If 'check_octant' is False, 'fit_octants_separately' must be False")
 
-        # transform this into a sequence, too, in order to test
-        # compatibility with `extra_param_selections` and to combine them
-        # afterwards (not required to be a sequence when applied to pipeline)
-        if (
-            isinstance(hypo_param_selections, str) or not
-            isinstance(hypo_param_selections, Sequence)
-        ):
-            hypo_param_selections = [hypo_param_selections]
+        if check_ordering:
+            if 'nh' in hypo_param_selections or 'ih' in hypo_param_selections:
+                raise ValueError('One of the orderings has already been '
+                                 'specified as one of the hypotheses but the '
+                                 'fit has been requested to check both. These '
+                                 'are incompatible.')
 
-        start_t = time.time()
+            logging.info('Performing fits in both orderings.')
+            extra_param_selections = ['nh', 'ih']
+        else:
+            extra_param_selections = [None]
 
-        # here we store the (best) fit(s) for each discrete selection
-        fit_infos = []
-        fit_metric_vals = []
-        fit_num_dists = []
-        fit_times = []
+        alternate_fits = []
+
         for extra_param_selection in extra_param_selections:
-            # if it's `None`, we don't need to check anything further
-            if (extra_param_selection is not None and
-                extra_param_selection in hypo_param_selections):
-                raise ValueError(
-                    'Your extra parameter selection "%s" has already '
-                    'been specified as one of the hypotheses but the '
-                    'fit has been requested to minimize over it. These '
-                    'are incompatible.' % extra_param_selection
-                )
-            # combine any previous param selection + the extra selection
-            # for this fit
-            full_param_selections = hypo_param_selections
-            full_param_selections.append(extra_param_selection)
             if extra_param_selection is not None:
-                logging.info('Fitting discrete selection "%s".'
-                             % extra_param_selection)
+                full_param_selections = hypo_param_selections
+                full_param_selections.append(extra_param_selection)
+            else:
+                full_param_selections = hypo_param_selections
+            # Select the version of the parameters used for this hypothesis
+            hypo_maker.select_params(full_param_selections)
 
-            # ignore alternate fits below (it's complicated enough with the
-            # various discrete hypo best fits we have already)
-            this_hypo_fit, _ = self.fit_hypo(
-                data_dist=data_dist,
+            # Reset free parameters to nominal values
+            if reset_free:
+                hypo_maker.reset_free()
+            else:
+                # Saves the current minimizer start values for the octant check
+                minimizer_start_params = hypo_maker.params
+
+            # Determine if checking theta23 octant
+            peforming_octant_check = check_octant and ( 'theta23' in hypo_maker.params.free.names )
+
+            #Determine inflection point, e.g. transition between octants
+            if peforming_octant_check :
+                inflection_point = (45.*ureg.deg).to(hypo_maker.params.theta23.units)
+
+            # If fitting each theta23 octant separately, create distinct params for the 
+            # two cases (also store the original param so can reset later)
+            # Start with the first case
+            if peforming_octant_check and fit_octants_separately :
+                theta23_orig,theta23_case1,theta23_case2 = get_separate_t23_octant_params(hypo_maker,inflection_point)
+                hypo_maker.update_params(theta23_case1)
+
+            # Perform the fit
+            best_fit_info = self.fit_hypo_inner(
                 hypo_maker=hypo_maker,
-                hypo_param_selections=full_param_selections,
+                data_dist=data_dist,
                 metric=metric,
-                fit_settings=fit_settings,
-                reset_free=reset_free,
-                check_octant=check_octant,
-                fit_octants_separately=fit_octants_separately,
-                randomize_params=randomize_params,
-                random_state=random_state,
                 minimizer_settings=minimizer_settings,
                 other_metrics=other_metrics,
-                blind=blind,
                 pprint=pprint,
+                blind=blind,
                 external_priors_penalty=external_priors_penalty
             )
-            this_hypo_metric_val = this_hypo_fit['metric_val']
-            this_hypo_num_dists = this_hypo_fit['num_distributions_generated']
-            this_hypo_time = this_hypo_fit['fit_time'].m_as('second')
+            
 
-            fit_infos.append(this_hypo_fit)
-            fit_metric_vals.append(this_hypo_metric_val)
-            fit_num_dists.append(this_hypo_num_dists)
-            fit_times.append(this_hypo_time)
-
-        # optimize the extra selections manually and make sure the fit times
-        # and no. of distributions are accurate
-        if metric in METRICS_TO_MAXIMIZE:
-            bf_dims = np.argmax(fit_metric_vals, axis=0)
-        else:
-            bf_dims = np.argmin(fit_metric_vals, axis=0)
-        bf_num_dists = np.sum(fit_num_dists, axis=0)
-        bf_fit_time = np.sum(fit_times, axis=0) * ureg.sec
-
-        best_fit_info = fit_infos[bf_dims]
-        best_fit_info['num_distributions_generated'] = bf_num_dists
-        best_fit_info['fit_time'] = bf_fit_time
-
-        end_t = time.time()
-        multi_hypo_fit_t = end_t - start_t
-
-        if len(extra_param_selections) > 1:
-            logging.info(
-                'Total time to fit all discrete hypos: %8.4f s;'
-                ' # of dists. generated: %6d',
-                multi_hypo_fit_t, np.sum(bf_num_dists)
-            )
-
-        return best_fit_info
-
-
-    def _optimize_t23_octant(self, best_fit_info, alternate_fits, data_dist,
-                             hypo_maker, metric, minimizer_settings,
-                             other_metrics, pprint, blind,
-                             fit_octants_separately,
-                             theta23_orig_and_other_octant=None,
-                             external_priors_penalty=None):
-        """Logic for optimizing octant of theta23, which should not be called
-        externally. The value of `theta23_orig_and_other_octant` determines
-        the behaviour. If it is `None`, the outcome from a previous theta23
-        fit in `best_fit_info` will be mirrored into the other octant to get
-        the seed for the next fit. If the outcome is in the same octant as
-        that in `best_fit_info`, another fit is run, starting even further
-        into the other octant. If, however, `theta23_orig_and_other_octant`
-        is a tuple of two "theta23" parameters, the theta23 fit will use
-        the second parameter in there to run a single fit starting from that
-        parameter's value and taking into account its range. No second fit is
-        performed in this scenario.
-
-
-        Parameters
-        ----------
-        best_fit_info : dict
-
-        alternate_fits : dict
-
-        data_dist : MapSet
-
-        hypo_maker : Detectors or DistributionMaker
-
-        metric : string or iterable of strings
-
-        minimizer_settings : dict
-            parsed minimizer configuration
-
-        other_metrics : iterable of strings
-
-        pprint : bool
-
-        blind : bool
-
-        theta23_orig_and_other_octant : 2-param tuple or None
-            Determines how the octant of theta23 is treated
-
-        external_priors_penalty : func
-
-        Returns
-        -------
-        best_fit_info : dict
-            Best fit dictionary across fits performed here and the results in
-            `best_fit_info` passed in.
-
-        """
-
-        if theta23_orig_and_other_octant is not None:
-            if len(theta23_orig_and_other_octant) != 2:
-                raise ValueError(
-                    "Expecting original theta23 param and that for the fit"
-                    " constrained to the second octant!"
-                )
-            theta23_orig, theta23_other = theta23_orig_and_other_octant
-            hypo_maker.update_params(theta23_other)
-        else:
-            # Hop to other octant by reflecting about 45 deg
-            old_octant = t23_octant(best_fit_info)
-            theta23 = hypo_maker.params.theta23
-            inflection_point = (45*ureg.deg).to(theta23.units)
-            tgt = 2*inflection_point - theta23.value
-            # the target value must not fall outside the range, so do something
-            # about those cases
-            if tgt > max(theta23.range):
-                theta23.value = (max(theta23.range) -
-                                 0.01 * (max(theta23.range)-min(theta23.range)))
-            elif tgt < min(theta23.range):
-                theta23.value = (min(theta23.range) +
-                     0.01 * (max(theta23.range)-min(theta23.range)))
-            else:
-                theta23.value = tgt
-            hypo_maker.update_params(theta23)
-
-        # Re-run minimizer starting at new point
-        new_fit_info = self._fit_hypo_inner(
-            hypo_maker=hypo_maker,
-            data_dist=data_dist,
-            metric=metric,
-            minimizer_settings=minimizer_settings,
-            other_metrics=other_metrics,
-            pprint=pprint,
-            blind=blind,
-            external_priors_penalty=external_priors_penalty
-        )
-
-        # ensure that we record the *full* fit history
-        previous_history = best_fit_info['fit_history']
-        rerun_history = new_fit_info['fit_history'][1:]
-        total_history = previous_history + rerun_history
-
-        # Check to make sure these two fits were either side of 45
-        # degrees, unless enforced separate octant fits.
-        # If not the case, we run another fit to ensure there's really no
-        # minimum in one of the octants.
-        if theta23_orig_and_other_octant is None:
-            old_octant = t23_octant(best_fit_info)
-            new_octant = t23_octant(new_fit_info)
-
-            # compare fit metrics
-            if it_got_better(
-                new_metric_val=new_fit_info['metric_val'],
-                old_metric_val=best_fit_info['metric_val'],
-                metric=metric
-            ):
-            # Take the one with the best fit
-                alternate_fits.append(best_fit_info)
-                best_fit_info = new_fit_info
-                if not blind:
-                    logging.debug('Accepting other-octant fit')
-            else:
-                alternate_fits.append(new_fit_info)
-                if not blind:
-                    logging.debug('Accepting initial-octant fit')
-
-            if old_octant == new_octant:
-                # no harm in reporting this even in case of blindness, right?
-                logging.warning(
-                    'Checking other octant *might* not have been successful since'
-                    ' both fits have resulted in the same octant. Fit will be'
-                    ' tried again starting at a point further into the opposite'
-                    ' octant.'
-                )
-                if old_octant == 0:
-                    # either start at 55 deg or close to upper end of range
-                    theta23.value = min(
-                        (55.0*ureg.deg).to(theta23.units),
-                        max(theta23.range) - 0.01 * (max(theta23.range)-min(theta23.range))
-                    )
-                elif old_octant == 1:
-                    # either start at 35 deg or close to lower end of range
-                    theta23.value = max(
-                        (35.0*ureg.deg).to(theta23.units),
-                        min(theta23.range) + 0.01 * (max(theta23.range)-min(theta23.range))
-                    )
+            # Decide whether fit for other octant is necessary
+            if peforming_octant_check :
+                logging.debug('checking other octant of theta23')
+                if reset_free:
+                    hypo_maker.reset_free()
                 else:
-                    raise ValueError("Octant index of %s unknown!" % old_octant)
-                hypo_maker.update_params(theta23)
+                    for param in minimizer_start_params:
+                        hypo_maker.params[param.name].value = param.value
+
+                #Determine new values for theta23 parameter in the other octant
+                if fit_octants_separately :
+                    #Use with the second case
+                    hypo_maker.update_params(theta23_case2)
+                else :
+                    # Hop to other octant by reflecting about 45 deg
+                    theta23 = hypo_maker.params.theta23
+                    theta23.value = 2*inflection_point - theta23.value
+                    hypo_maker.update_params(theta23)
 
                 # Re-run minimizer starting at new point
-                # All parameters except for theta23 are at their outcomes
-                # from the previous fit.
-                new_fit_info = self._fit_hypo_inner(
+                new_fit_info = self.fit_hypo_inner(
                     hypo_maker=hypo_maker,
                     data_dist=data_dist,
                     metric=metric,
@@ -919,384 +588,44 @@ class Analysis(object):
 
                 # Take the one with the best fit
                 if metric[0] in METRICS_TO_MAXIMIZE:
-                    got_better = (
+                    it_got_better = (
                         new_fit_info['metric_val'] > best_fit_info['metric_val']
                     )
                 else:
-                    got_better = (
+                    it_got_better = (
                         new_fit_info['metric_val'] < best_fit_info['metric_val']
                     )
 
-                if got_better:
-
+                if it_got_better:
                     alternate_fits.append(best_fit_info)
                     best_fit_info = new_fit_info
                     if not blind:
-                        logging.debug('Accepting last other-octant fit')
+                        logging.debug('Accepting other-octant fit')
                 else:
                     alternate_fits.append(new_fit_info)
                     if not blind:
-                        logging.debug('Sticking to previous best fit')
+                        logging.debug('Accepting initial-octant fit')
 
-        else:
-            # we first need a check on the fit outcome for the separate octant
-            # case
-            if it_got_better(
-                new_metric_val=new_fit_info['metric_val'],
-                old_metric_val=best_fit_info['metric_val'],
-                metric=metric
-            ):
-            # Take the one with the best fit
-                alternate_fits.append(best_fit_info)
-                best_fit_info = new_fit_info
-                if not blind:
-                    logging.debug('Accepting other-octant fit')
-            else:
-                alternate_fits.append(new_fit_info)
-                if not blind:
-                    logging.debug('Accepting initial-octant fit')
-
-            # record the correct range for theta23
-            # (we force its value when fitting the octants separately)
-            # TODO: probably not necessary to deepcopy here?
-            best_fit_info['params'].theta23.range = deepcopy(theta23_orig.range)
-            new_fit_info['params'].theta23.range = deepcopy(theta23_orig.range)
-            # If changed the range of the theta23 param whilst checking octants
-            # reset the range now.
-            # Keep the final value though (is up to the reset_free param
-            # to deal with resetting this)
-            theta23_orig.value = hypo_maker.params.theta23.value
-            hypo_maker.update_params(theta23_orig)
-
-        # finally, we make sure we report the full fit history in here
-        best_fit_info['fit_history'] = total_history
-
-        return best_fit_info
-
-
-    def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
-                 fit_settings=None, minimizer_settings=None, check_octant=True,
-                 fit_octants_separately=False, reset_free=True,
-                 randomize_params=None, random_state=None,
-                 other_metrics=None, blind=False, pprint=True,
-                 external_priors_penalty=None):
-        """Fitter "outer" loop: If `check_octant` is True, run
-        `_fit_hypo_inner` starting in each octant of theta23 (assuming that
-        is a param in the `hypo_maker`). Otherwise, just run the inner
-        method once.
-
-        Note that prior to running the fit, the `hypo_maker` has
-        `hypo_param_selections` applied and its free parameters are reset to
-        their nominal values.
-
-        Parameters
-        ----------
-        data_dist : MapSet or List of MapSets
-            Data distribution(s). These are what the hypothesis is tasked to
-            best describe during the optimization process.
-
-        hypo_maker : Detectors, DistributionMaker or instantiable thereto
-            Generates the expectation distribution under a particular
-            hypothesis. This typically has (but is not required to have) some
-            free parameters which can be modified by the minimizer to optimize
-            the `metric`.
-
-        hypo_param_selections : None, string, or sequence of strings
-            A pipeline configuration can have param selectors that allow
-            switching a parameter among two or more values by specifying the
-            corresponding param selector(s) here. This also allows for a single
-            instance of a DistributionMaker to generate distributions from
-            different hypotheses.
-
-        metric : string or iterable of strings
-            The metric to use for optimization. Valid metrics are found in
-            `VALID_METRICS`. Note that the optimized hypothesis also has this
-            metric evaluated and reported for each of its output maps.
-
-        fit_settings : string or dict
-            Location of fit settings config or parsed dictionary. If none are
-            provided despite the presence of free parameters in `hypo_maker`,
-            need to supply `minimizer_settings`. Minimizer configuration can
-            be overriden by providing `minimizer_settings` in any case.
-
-        minimizer_settings : string or dict
-            Location of minimizer settings config or parsed dictionary. These
-            will either be used to override minimizer settings in `fit_settings`
-            (if supplied), but can also be employed as standalone fit
-            (=minimization) settings.
-
-        check_octant : bool
-            If theta23 is a parameter to be used in the optimization (i.e.,
-            free), the fit will be re-run in the second (first) octant if
-            theta23 is initialized in the first (second) octant.
-
-        fit_octants_separately : bool
-            If 'check_octant' is set so that the two octants of theta23 are
-            individually checked, this flag enforces that each theta23 can
-            only vary within the octant currently being checked (e.g. the
-            minimizer cannot swap octants).
-
-        reset_free : bool
-            Resets all free parameters to values defined in stages when
-            starting a fit.
-
-        randomize_params : sequence of str or bool
-            Names of params whose start values are to be randomized or
-            `True`/`False`
-
-        random_state : random_state or instantiable thereto
-            Initial random state for randomization of parameter start values.
-
-        other_metrics : None, string, or list of strings
-            After finding the best fit, these other metrics will be evaluated
-            for each output that contributes to the overall fit. All strings
-            must be valid metrics, as per `VALID_METRICS`, or the
-            special string 'all' can be specified to evaluate all
-            VALID_METRICS.
-
-        blind : bool
-            Whether to carry out a blind analysis. This hides actual parameter
-            values from display.
-
-        pprint : bool
-            Whether to show live-update of minimizer progress.
-
-        external_priors_penalty : func
-            User defined prior penalty function. Adds an extra penalty
-            to the metric that is fit, depending on the input function.
-
-
-        Returns
-        -------
-        best_fit_info : OrderedDict (see _fit_hypo_inner method for details of
-            `fit_info` dict)
-
-        alternate_fits : list of `fit_info` from other fits run
-
-        """
-
-        start_t = time.time()
-        # set up list for storing all alternate fit outcomes
-        alternate_fits = []
-
-        if isinstance(metric, str):
-            metric = [metric]
-
-        # reset the counter whenever we start a new hypo fit
-        self.counter = Counter()
-
-        if not check_octant and fit_octants_separately:
-            raise ValueError(
-                "If 'check_octant' is False, 'fit_octants_separately' must"
-                " be False!"
-            )
-
-        # Select the version of the parameters used for this hypothesis
-        hypo_maker.select_params(hypo_param_selections)
-
-        new_fit_settings = deepcopy(fit_settings)
-        # only apply fit settings after the param selection has been applied
-        if fit_settings is not None:
-            new_fit_settings = apply_fit_settings(
-                fit_settings=new_fit_settings,
-                free_params=hypo_maker.params.free
-            )
-
-            minimize_params = new_fit_settings['minimize']['params']
-            if minimize_params:
-                # check if minimizer settings are passed into this method,
-                # fall back to those given in fit settings
-                if minimizer_settings is None:
-                    # note: we assume these are parsed already!
-                    parsed_minimizer_settings = {
-                        'global': new_fit_settings['minimize']['global'],
-                        'local': new_fit_settings['minimize']['local']
-                    }
-                else:
-                    logging.warn(
-                        'Minimizer settings provided as argument'
-                        ' to `fit_hypo` used to override those in'
-                        ' the fit settings!'
-                    )
-                    parsed_minimizer_settings = parse_minimizer_config(minimizer_settings)
-                if isinstance(randomize_params, Sequence):
-                    excess = set(randomize_params).difference(set(minimize_params))
-                    for pname in excess:
-                        logging.warn(
-                            "Parameter '%s''s start value cannot be"
-                            " randomized as it is not among minimization"
-                            " parameters. Request has no effect."
-                        )
-                        randomize_params.remove(pname)
-            else:
-                if check_octant:
-                    logging.warn(
-                        'Selecting "check_octant" only useful if theta23'
-                        ' is among *minimization* parameters. No need or no'
-                        ' point with any other fitting method.'
-                        ' Request has no effect.'
-                    )
-                    check_octant = False
-
-        else:
-            # when there are no fit settings we want the default
-            # behavior - just numerical minimization over all free
-            # parameters: `_fit_hypo_inner` makes sure of this
-            if hypo_maker.params.free and minimizer_settings is None:
-                raise ValueError(
-                    'You did not specify any fit settings, but there are free'
-                    ' parameters which cannot be minimized over if there are'
-                    ' no minimizer settings!'
-                )
-            parsed_minimizer_settings = parse_minimizer_config(minimizer_settings)
-
-        # Reset free parameters to nominal values
-        if reset_free:
-            hypo_maker.reset_free()
-        else:
-            # Save the current minimizer start values for the octant check.
-            # deepcopy: mustn't be modified.
-            minimizer_start_params = deepcopy(hypo_maker.params)
-
-        # Determine if checking theta23 octant
-        need_octant_check = (
-            check_octant and 'theta23' in hypo_maker.params.free.names
-        )
-
-        # Determine inflection point, e.g. transition between octants
-        if need_octant_check:
-            if fit_octants_separately:
-                # If fitting each theta23 octant separately, create distinct params
-                # for theta23 confined to each of the two octants
-                # (also store the original param so can reset later)
-                theta23_orig, theta23_first_octant, theta23_second_octant = \
-                    get_separate_t23_octant_params(hypo_maker)
-                # start with the first octant
-                hypo_maker.update_params(theta23_first_octant)
-
-        # Perform the fit
-        best_fit_info = self._fit_hypo_inner(
-            hypo_maker=hypo_maker,
-            data_dist=data_dist,
-            metric=metric,
-            fit_settings_inner=new_fit_settings,
-            minimizer_settings=parsed_minimizer_settings,
-            randomize_params=randomize_params,
-            random_state=random_state,
-            other_metrics=other_metrics,
-            pprint=pprint,
-            blind=blind,
-            external_priors_penalty=external_priors_penalty
-        )
-
-        # Decide whether fit for other octant is necessary
-        if need_octant_check:
-            if ('global' in parsed_minimizer_settings and
-                parsed_minimizer_settings['global']['method']):
-                logging.info(
-                    'Checking other octant of theta23 might not be'
-                    ' necessary with a global minimizer. Doing so'
-                    ' anyway right now.'
-                )
-            logging.info('Checking other octant of theta23.')
-            if reset_free:
-                # need to distinguish between the two possible cases
-                if fit_octants_separately:
-                    logging.debug(
-                        "Resetting all free parameters to their nominal values"
-                        " except for theta23."
-                    )
-                    # if fitting octants separately, the range of the theta23
-                    # param is currently restricted to the first octant.
-                    # Resetting to nominal is not what we want for theta23,
-                    # but the other free ones we need to reset
-                    hypo_maker.params.fix("theta23")
-                    hypo_maker.reset_free()
-                    hypo_maker.params.unfix("theta23")
-                else:
-                    # here, it's safe to reset theta23 also: the next
-                    # optimization run will ensure to mirror theta23 from its
-                    # value in `best_fit_info` into the other octant
-                    logging.debug(
-                        "Resetting all free parameters to their nominal values."
-                    )
-                    hypo_maker.reset_free()
-            else:
-                # Set all parameters to the values they had at the beginning
-                # of the function. The same comments apply as in the case of
-                # `reset_free` set to `True`.
-                if fit_octants_separately:
-                    logging.debug(
-                        "Resetting all free parameters except for theta23"
-                        " to the values they had when `fit_hypo` was called."
-                    )
-                    for param in minimizer_start_params:
-                        if not "theta23" in param.name:
-                            hypo_maker.params[param.name].value = param.value
-                else:
-                    logging.debug(
-                        "Resetting all free parameters"
-                        " to the values they had when `fit_hypo` was called."
-                    )
-                    for param in minimizer_start_params:
-                        hypo_maker.params[param.name].value = param.value
-
-            # We use this to pass in the original unmodified theta23 param
-            # together with its second octant param (value and range modified)
-            # in the case of separate octant fits, and otherwise we don't need
-            # the two.
-            theta23_orig_and_other_octant = (
-                (theta23_orig, theta23_second_octant) if fit_octants_separately
-                else None
-            )
-
-            best_fit_info = self._optimize_t23_octant(
-                best_fit_info=best_fit_info,
-                alternate_fits=alternate_fits,
-                data_dist=data_dist,
-                fit_octants_separately=fit_octants_separately,
-                hypo_maker=hypo_maker,
-                metric=metric,
-                minimizer_settings=parsed_minimizer_settings,
-                other_metrics=other_metrics,
-                pprint=pprint,
-                blind=blind,
-                theta23_orig_and_other_octant=theta23_orig_and_other_octant,
-                external_priors_penalty=external_priors_penalty
-            )
-        # make sure the overall best fit contains the
-        # overall number of distributions generated
-        # across the whole fitting process for this point
-        best_fit_info['num_distributions_generated'] = self.counter.count
-
-        end_t = time.time()
-        fit_t = end_t - start_t
-
-        best_fit_info['fit_time'] = fit_t * ureg.sec
-
-        logging.info(
-            'Total time to fit hypo: %8.4f s;'
-            ' # of dists generated: %6d',
-            fit_t, self.counter.count,
-        )
+                # If changed the range of the theta23 param whilst checking octants
+                # reset the range now.
+                # Keep the final value though (is up to the reset_free param
+                # to deal with resetting this)
+                if fit_octants_separately :
+                    theta23_orig.value = hypo_maker.params.theta23.value
+                    hypo_maker.update_params(theta23_orig)
 
         return best_fit_info, alternate_fits
 
-
-    def _fit_hypo_inner(self, data_dist, hypo_maker, metric,
-                        fit_settings_inner=None, minimizer_settings=None,
-                        randomize_params=None, random_state=None,
-                        other_metrics=None, pprint=True, blind=False,
-                        external_priors_penalty=None):
-        """Fitter "inner" loop: decides on which fitting routine should be
-        dispatched.
+    def fit_hypo_inner(self, data_dist, hypo_maker, metric, minimizer_settings,
+                       other_metrics=None, pprint=True, blind=False, external_priors_penalty=None):
+        """Fitter "inner" loop: Run an arbitrary scipy minimizer to modify
+        hypo dist maker's free params until the data_dist is most likely to have
+        come from this hypothesis.
 
         Note that an "outer" loop can handle discrete scanning over e.g. the
         octant for theta23; for each discrete point the "outer" loop can make a
         call to this "inner" loop. One such "outer" loop is implemented in the
         `fit_hypo` method.
-
-        Should not be called outside of `fit_hypo`
 
 
         Parameters
@@ -1308,125 +637,7 @@ class Analysis(object):
 
         metric : string or iterable of strings
 
-        fit_settings_inner : dict
-            Already-processed fit settings, depending on free hypo_maker
-            params. Just used to determine the fitting methods to employ.
-
         minimizer_settings : dict
-
-        randomize_params : sequence of str or bool
-            list of param names or `True`/`False`
-
-        random_state : random_state or instantiable thereto
-
-        other_metrics : None, string, or sequence of strings
-
-        pprint : bool
-            Whether to show live-update of minimizer progress.
-
-        blind : bool
-
-        external_priors_penalty : func
-            User defined prior penalty function
-
-
-        Returns
-        -------
-        fit_info : OrderedDict with details of the fit
-
-        """
-
-        if isinstance(metric, str):
-            metric = [metric]
-
-        if fit_settings_inner is not None:
-            pull_params = fit_settings_inner['pull']['params']
-            minimize_params = fit_settings_inner['minimize']['params']
-        else:
-            # the default: just minimizer over all free
-            pull_params = []
-            minimize_params = hypo_maker.params.free.names
-
-        # dispatch correct fitting method depending on combination of
-        # pull and minimize params
-
-        # no parameters to fit
-        if not len(pull_params) and not len(minimize_params):
-            logging.debug("Nothing else to do. Calculating metric(s).")
-            nofit_hypo_asimov_dist = hypo_maker.get_outputs(return_sum=True)
-            self.counter += 1
-            fit_info = self.nofit_hypo(
-                data_dist=data_dist,
-                hypo_maker=hypo_maker,
-                hypo_asimov_dist=nofit_hypo_asimov_dist,
-                metric=metric,
-                other_metrics=other_metrics,
-                blind=blind,
-                external_priors_penalty=external_priors_penalty
-           )
-
-        # only parameters to optimize numerically
-        elif len(minimize_params) and not len(pull_params):
-            fit_info = self._fit_hypo_minimizer(
-                data_dist=data_dist,
-                hypo_maker=hypo_maker,
-                minimizer_settings=minimizer_settings,
-                randomize_params=randomize_params,
-                random_state=random_state,
-                metric=metric,
-                other_metrics=other_metrics,
-                blind=blind,
-                pprint=pprint,
-                external_priors_penalty=external_priors_penalty
-            )
-
-        # only parameters to fit with pull method
-        elif len(pull_params) and not len(minimize_params):
-            fit_info = self._fit_hypo_pull(
-                data_dist=data_dist,
-                hypo_maker=hypo_maker,
-                pull_settings=fit_settings_inner['pull'],
-                metric=metric,
-                other_metrics=other_metrics,
-                blind=blind,
-                external_priors_penalty=external_priors_penalty
-            )
-
-        # parameters to optimize numerically and to fit with pull method
-        else:
-            raise NotImplementedError(
-                "Combination of minimization and pull method not implemented yet!"
-            )
-
-        return fit_info
-
-
-    def _fit_hypo_minimizer(self, data_dist, hypo_maker, metric,
-                            minimizer_settings,
-                            randomize_params=None, random_state=None,
-                            other_metrics=None, pprint=True, blind=False,
-                            external_priors_penalty=None):
-        """Fitter "inner" loop: Run an arbitrary scipy minimizer to modify
-        hypo dist maker's free params until the data_dist is most likely to have
-        come from this hypothesis.
-
-        Should not be called externally.
-
-        Parameters
-        ----------
-        data_dist : MapSet or List of MapSets
-            Data distribution(s)
-
-        hypo_maker : DistributionMaker or convertible thereto
-
-        metric : string or iterable of strings
-
-        minimizer_settings : dict
-
-        randomize_params : sequence of str or bool
-            list of param names or `True`/`False`
-
-        random_state : random_state or instantiable thereto
 
         other_metrics : None, string, or sequence of strings
 
@@ -1442,43 +653,13 @@ class Analysis(object):
         Returns
         -------
         fit_info : OrderedDict with details of the fit with keys 'metric',
-            'metric_val', 'params', 'detailed_metric_info', 'hypo_asimov_dist',
-            'fit_metadata', 'fit_time', 'fit_history', 'num_distributions_generated'
+            'metric_val', 'params', 'hypo_asimov_dist', and
+            'minimizer_metadata'
 
         """
-        # don't modify the original dict
-        new_minimizer_settings = deepcopy(minimizer_settings)
+        minimizer_settings = set_minimizer_defaults(minimizer_settings)
+        validate_minimizer_settings(minimizer_settings)
 
-        if set(new_minimizer_settings.keys()) == set(('local', 'global')):
-            # allow for an entry of `None`
-            for minimizer_type in ['local', 'global']:
-                if isinstance(new_minimizer_settings[minimizer_type]['method'], str):
-                    minimizer_type_settings =\
-                        set_minimizer_defaults(new_minimizer_settings[minimizer_type])
-                    validate_minimizer_settings(minimizer_type_settings)
-                else:
-                    minimizer_type_settings = None
-                new_minimizer_settings[minimizer_type] = minimizer_type_settings
-        else:
-            # just try to interpret as "regular" local minimization
-            method = new_minimizer_settings['method'].lower()
-            if not method in LOCAL_MINIMIZERS_WITH_DEFAULTS:
-                raise ValueError(
-                    'Minimizer method "%s" could not be identified as'
-                    ' corresponding to local minimization (valid methods: %s).'
-                    ' If you desire to run a global minimizer pass in the'
-                    ' config with explicit "global" and "local" keys.'
-                    % (method, LOCAL_MINIMIZERS_WITH_DEFAULTS)
-                )
-            new_minimizer_settings = set_minimizer_defaults(new_minimizer_settings)
-            validate_minimizer_settings(new_minimizer_settings)
-            new_minimizer_settings = {
-                'global': None,
-                'local': new_minimizer_settings
-            }
-
-        # Want to *maximize* e.g. log-likelihood but we're using a minimizer,
-        # so flip sign of metric in those cases.
         if isinstance(metric, str):
             metric = [metric]
         sign = 0
@@ -1490,58 +671,121 @@ class Analysis(object):
             else:
                 raise ValueError('Defined metrics are not compatible')
 
-        # set starting values and bounds (bounds possibly modified depending
-        # on whether the local minimizer uses gradients)
-        x0, bounds = minimizer_x0_bounds(
-            free_params=hypo_maker.params.free,
-            randomize_params=randomize_params,
-            random_state=random_state,
-            minimizer_settings=new_minimizer_settings['local']
-        )
+        # Get starting free parameter values
+        x0 = hypo_maker.params.free._rescaled_values # pylint: disable=protected-access
 
+        minimizer_method = minimizer_settings['method']['value'].lower()
+        if minimizer_method in MINIMIZERS_USING_SYMM_GRAD:
+            logging.warning(
+                'Minimizer %s requires artificial boundaries SMALLER than the'
+                ' user-specified boundaries (so that numerical gradients do'
+                ' not exceed the user-specified boundaries).',
+                minimizer_method
+            )
+            step_size = minimizer_settings['options']['value']['eps']
+            bounds = [(0 + step_size, 1 - step_size)]*len(x0)
+        else:
+            bounds = [(0, 1)]*len(x0)
+
+        clipped_x0 = []
+        for param, x0_val, bds in zip(hypo_maker.params.free, x0, bounds):
+            if x0_val < bds[0] - EPSILON:
+                raise ValueError(
+                    'Param %s, initial scaled value %.17e is below lower bound'
+                    ' %.17e.' % (param.name, x0_val, bds[0])
+                )
+            if x0_val > bds[1] + EPSILON:
+                raise ValueError(
+                    'Param %s, initial scaled value %.17e exceeds upper bound'
+                    ' %.17e.' % (param.name, x0_val, bds[1])
+                )
+
+            clipped_x0_val = np.clip(x0_val, a_min=bds[0], a_max=bds[1])
+            clipped_x0.append(clipped_x0_val)
+
+            if recursiveEquality(clipped_x0_val, bds[0]):
+                logging.warning(
+                    'Param %s, initial scaled value %e is at the lower bound;'
+                    ' minimization may fail as a result.',
+                    param.name, clipped_x0_val
+                )
+            if recursiveEquality(clipped_x0_val, bds[1]):
+                logging.warning(
+                    'Param %s, initial scaled value %e is at the upper bound;'
+                    ' minimization may fail as a result.',
+                    param.name, clipped_x0_val
+                )
+
+        x0 = tuple(clipped_x0)
+
+        logging.debug('Running the %s minimizer...', minimizer_method)
+
+        # Using scipy.optimize.minimize allows a whole host of minimizers to be
+        # used.
+        counter = Counter()
+        
         fit_history = []
-        fit_history.append(metric + [p.name for p in hypo_maker.params.free])
+        fit_history.append(list(metric) + [v.name for v in hypo_maker.params.free])
 
-        logging.debug('Start minimization at point %s.' % hypo_maker.params.free)
+        start_t = time.time()
 
         if pprint and not blind:
-            # display header if desired/allowed
-            # only show the first metric here (only part of info for Detectors analysis)
-            display_minimizer_header(
-                free_params=hypo_maker.params.free,
-                metric=metric[0]
-            )
+            free_p = hypo_maker.params.free
+
+            # Display any units on top
+            r = re.compile(r'(^[+0-9.eE-]* )|(^[+0-9.eE-]*$)')
+            hdr = ' '*(6+1+10+1+12+3)
+            unt = []
+            for p in free_p:
+                u = r.sub('', format(p.value, '~')).replace(' ', '')[0:10]
+                if u:
+                    u = '(' + u + ')'
+                unt.append(u.center(12))
+            hdr += ' '.join(unt)
+            hdr += '\n'
+
+            # Header names
+            hdr += ('iter'.center(6) + ' ' + 'funcalls'.center(10) + ' ' +
+                    metric[0][0:12].center(12) + ' | ')
+            hdr += ' '.join([p.name[0:12].center(12) for p in free_p])
+            hdr += '\n'
+
+            # Underscores
+            hdr += ' '.join(['-'*6, '-'*10, '-'*12, '+'] + ['-'*12]*len(free_p))
+            hdr += '\n'
+
+            sys.stdout.write(hdr)
 
         # reset number of iterations before each minimization
         self._nit = 0
-        # also create a dedicated counter for this one minimization process
-        min_counter = Counter()
 
-        # record start time
-        start_t = time.time()
-
-        optimize_result = _run_minimizer(
+        #
+        # From that point on, optimize starts using the metric and 
+        # iterates, no matter what you do 
+        #
+        optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
+            args=(hypo_maker, data_dist, metric, counter, fit_history, pprint,
+                  blind, external_priors_penalty),
             bounds=bounds,
-            random_state=random_state,
-            minimizer_settings=new_minimizer_settings,
-            minimizer_callback=self._minimizer_callback,
-            hypo_maker=hypo_maker,
-            data_dist=data_dist,
-            metric=metric,
-            sign=sign,
-            counter=min_counter,
-            fit_history=fit_history,
-            pprint=pprint,
-            blind=blind,
-            external_priors_penalty=external_priors_penalty
+            method=minimizer_settings['method']['value'],
+            options=minimizer_settings['options']['value'],
+            callback=self._minimizer_callback
         )
-
+        end_t = time.time()
         if pprint:
             # clear the line
             sys.stdout.write('\n\n')
             sys.stdout.flush()
+
+        minimizer_time = end_t - start_t
+
+        logging.info(
+            'Total time to optimize: %8.4f s; # of dists generated: %6d;'
+            ' avg dist gen time: %10.4f ms',
+            minimizer_time, counter.count, minimizer_time*1000./counter.count
+        )
 
         # Will not assume that the minimizer left the hypo maker in the
         # minimized state, so set the values now (also does conversion of
@@ -1551,27 +795,12 @@ class Analysis(object):
 
         # Record the Asimov distribution with the optimal param values
         hypo_asimov_dist = hypo_maker.get_outputs(return_sum=True)
-        min_counter += 1
-
-        # update the global counter
-        self.counter += min_counter.count
 
         # Get the best-fit metric value
         metric_val = sign * optimize_result.pop('fun')
 
-        end_t = time.time()
-        minimizer_time = end_t - start_t
-
-        logging.info(
-            'Total time to minimize: %8.4f s;'
-            ' # of dists. generated: %6d;'
-            ' avg. dist. gen. time: %10.4f ms',
-            minimizer_time, min_counter.count,
-            minimizer_time*1000./min_counter.count
-        )
-
-        # Record minimizer metadata (all info besides 'x' and 'fun')
-        # Record all data even for blinded analysis
+        # Record minimizer metadata (all info besides 'x' and 'fun'; also do
+        # not record some attributes if performing blinded analysis)
         metadata = OrderedDict()
         for k in sorted(optimize_result.keys()):
             if blind and k in ['jac', 'hess', 'hess_inv']:
@@ -1583,153 +812,13 @@ class Analysis(object):
         fit_info = OrderedDict()
         fit_info['metric'] = metric
         fit_info['metric_val'] = metric_val
-        #if blind:
-        #    hypo_maker.reset_free()
-        fit_info['params'] = deepcopy(hypo_maker.params)
-        fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
-            data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
-            params=hypo_maker.params, metric=metric, other_metrics=other_metrics
-        )
-        fit_info['fit_time'] = minimizer_time * ureg.sec
-        fit_info['num_distributions_generated'] = min_counter.count
-        fit_info['fit_metadata'] = metadata
-        fit_info['fit_history'] = fit_history
-        fit_info['hypo_asimov_dist'] = hypo_asimov_dist
-
-        msg = optimize_result.message
-
-        if hasattr(optimize_result, 'success'):
-            if not optimize_result.success:
-                raise OptimizeWarning('Optimization failed. Message: "%s"' % msg)
         if blind > 1:  # only at stricter blindness level
             # Reset to starting value of the fit, rather than nominal values because
             # the nominal value might be out of range if this is inside an octant check.
             hypo_maker._set_rescaled_free_params(x0)
             fit_info['params'] = ParamSet()
         else:
-            logging.warn('Could not tell whether optimization was successful -'
-                         ' most likely because global optimization was'
-                         ' requested.\nMessage: "%s"' % msg)
-
-        return fit_info
-
-    # TODO: external priors, pprint
-    def _fit_hypo_pull(self, data_dist, hypo_maker, pull_settings, metric,
-                       other_metrics=None, pprint=True, blind=False,
-                       external_priors_penalty=None):
-        """Fit a hypo to a data distribution via the pull method.
-
-        Parameters
-        ----------
-        data_dist : MapSet
-            Data distribution(s)
-
-        hypo_maker : DistributionMaker or convertible thereto
-
-        pull_settings : dict
-
-        metric : string or iterable of strings
-
-        other_metrics : None, string, or sequence of strings
-
-        pprint : bool
-            Whether to show live-update of fit progress.
-
-        blind : bool
-
-        external_priors_penalty : func
-            User defined prior penalty function
-
-
-        Should not be called externally.
-
-        Returns
-        -------
-        fit_info : OrderedDict with details of the fit with keys 'metric',
-            'metric_val', 'detailed_metric_info', 'params', 'fit_time',
-            'num_distributions_generated', 'hypo_asimov_dist'
-
-        """
-
-        fit_info = OrderedDict()
-
-        if isinstance(metric, str):
-            metric = [metric]
-
-        # currently only chi2 fit implemented
-        if not all(m == "chi2" for m in metric):
-            raise ValueError(
-                "Only metric 'chi2' supported by pull method."
-            )
-        # TODO
-        assert external_priors_penalty is None
-
-        # record start time
-        start_t = time.time()
-
-        pull_counter = Counter()
-
-        # main algorithm: calculate fisher matrix and parameter pulls
-        test_vals = {pname: pull_settings['values'][i] for i, pname in
-                     enumerate(pull_settings['params'])}
-
-        fisher, gradient_maps, fid_hypo_asimov_dist, nonempty = get_fisher_matrix(
-            hypo_maker=hypo_maker,
-            test_vals=test_vals,
-            counter=pull_counter
-        )
-
-        pulls = calculate_pulls(
-            fisher=fisher,
-            fid_maps_truth=data_dist,
-            fid_hypo_asimov_dist=fid_hypo_asimov_dist,
-            gradient_maps=gradient_maps,
-            nonempty=nonempty
-        )
-
-        # update hypo maker params to best fit values
-        for pname, pull in pulls:
-            hypo_maker.params[pname].value = (
-                hypo_maker.params[pname].nominal_value + pull
-            )
-
-        # generate the hypo distribution at the best fit
-        best_fit_hypo_dist = hypo_maker.get_outputs(return_sum=True)
-        pull_counter += 1
-        self.counter += pull_counter.count
-
-        # calculate the value of the metric at the best fit
-        metric_val = self._calculate_metric_val(
-            data_dist=data_dist, hypo_asimov_dist=best_fit_hypo_dist,
-            hypo_maker=hypo_maker, metric=metric, blind=blind,
-            external_priors_penalty=external_priors_penalty
-        )
-
-        # record stop time
-        end_t = time.time()
-
-        fit_info['metric'] = metric
-        # store the metric value
-        fit_info['metric_val'] = metric_val
-
-        # store the fit duration
-        fit_t = end_t - start_t
-
-        logging.info(
-            'Total time to compute pulls: %8.4f s;'
-            ' # of dists. generated: %6d',
-            fit_t, pull_counter.count,
-        )
-
-        fit_info['fit_time'] = fit_t * ureg.sec
-
-        #if blind:
-        #    hypo_maker.reset_free()
-        #    fit_info['params'] = ParamSet()
-        #else:
-        fit_info['params'] = deepcopy(hypo_maker.params)
-
-        # TODO: this logic by now should also not be duplicated everywhere
+            fit_info['params'] = deepcopy(hypo_maker.params)
         if isinstance(hypo_maker, Detectors):
             fit_info['detailed_metric_info'] = [self.get_detailed_metric_info(
                 data_dist=data_dist[i], hypo_asimov_dist=hypo_asimov_dist[i],
@@ -1749,18 +838,26 @@ class Analysis(object):
                 params=hypo_maker.params, metric=metric[0], other_metrics=other_metrics,
                 detector_name=hypo_maker._detector_name
             )
+        fit_info['minimizer_time'] = minimizer_time * ureg.sec
+        fit_info['num_distributions_generated'] = counter.count
+        fit_info['minimizer_metadata'] = metadata
+        fit_info['fit_history'] = fit_history
+        # If blind replace hypo_asimov_dist with none object
+        if blind:
+            hypo_asimov_dist = None
+        fit_info['hypo_asimov_dist'] = hypo_asimov_dist
 
-        fit_info['num_distributions_generated'] = pull_counter.count
-        #if blind:
-        #    best_fit_hypo_dist = None
-        fit_info['hypo_asimov_dist'] = best_fit_hypo_dist
+        if not optimize_result.success:
+            if blind:
+                msg = ''
+            else:
+                msg = ' ' + optimize_result.message
+            raise ValueError('Optimization failed.' + msg)
 
         return fit_info
 
-
-    def nofit_hypo(self, data_dist, hypo_maker, hypo_asimov_dist, metric,
-                   other_metrics=None, blind=False,
-                   external_priors_penalty=None, hypo_param_selections=None):
+    def nofit_hypo(self, data_dist, hypo_maker, hypo_param_selections,
+                   hypo_asimov_dist, metric, other_metrics=None, blind=False, external_priors_penalty=None):
         """Fitting a hypo to Asimov distribution generated by its own
         distribution maker is unnecessary. In such a case, use this method
         (instead of `fit_hypo`) to still retrieve meaningful information for
@@ -1770,30 +867,22 @@ class Analysis(object):
         ----------
         data_dist : MapSet or List of MapSets
         hypo_maker : Detectors or DistributionMaker
+        hypo_param_selections : None, string, or sequence of strings
         hypo_asimov_dist : MapSet or List of MapSets
         metric : string or iterable of strings
         other_metrics : None, string, or sequence of strings
         blind : bool
         external_priors_penalty : func
-        hypo_param_selections : None, string, or sequence of strings
 
-
-        Returns
-        -------
-        fit_info : OrderedDict
 
         """
-
         fit_info = OrderedDict()
         if isinstance(metric, str):
             metric = [metric]
         fit_info['metric'] = metric
 
-        # record start time
-        start_t = time.time()
-
         # NOTE: Select params but *do not* reset to nominal values to record
-        # the current param values
+        # the current (presumably already optimal) param values
         hypo_maker.select_params(hypo_param_selections)
 
         # Check number of used metrics
@@ -1844,17 +933,8 @@ class Analysis(object):
                     'Failed when computing metric with free params %s',
                     hypo_maker.params.free
                 )
-
-        metric_val = self._calculate_metric_val(
-            data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
-            hypo_maker=hypo_maker, metric=metric, blind=blind,
-            external_priors_penalty=external_priors_penalty
-        )
-
-        # record stop time
-        end_t = time.time()
-        # store the "fit" duration
-        fit_t = end_t - start_t
+                logging.error(str(e))
+            raise
 
         fit_info['metric_val'] = metric_val
 
@@ -1862,14 +942,10 @@ class Analysis(object):
             # Okay, if blind analysis is being performed, reset the values so
             # the user can't find them in the object
             hypo_maker.reset_free()
-            # make it possible to find the best fit in the output
-            # fit_info['params'] = ParamSet()
-
-        # have all of this in here, whether blind or not
-        fit_info['params'] = deepcopy(hypo_maker.params)
-
+            fit_info['params'] = ParamSet()
+        else:
+            fit_info['params'] = deepcopy(hypo_maker.params)
         if isinstance(hypo_maker, Detectors):
-
             fit_info['detailed_metric_info'] = [self.get_detailed_metric_info(
                 data_dist=data_dist[i], hypo_asimov_dist=hypo_asimov_dist[i],
                 params=hypo_maker._distribution_makers[i].params, metric=metric[i],
@@ -1893,7 +969,6 @@ class Analysis(object):
         fit_info['num_distributions_generated'] = 0
         fit_info['minimizer_metadata'] = OrderedDict()
         fit_info['hypo_asimov_dist'] = hypo_asimov_dist
-
         return fit_info
 
     @staticmethod
@@ -1907,7 +982,7 @@ class Analysis(object):
         data_dist
         hypo_asimov_dist
         params
-        metric : str or sequence of str
+        metric
         other_metrics
 
         Returns
@@ -1915,14 +990,11 @@ class Analysis(object):
         detailed_metric_info : OrderedDict
 
         """
-
         if other_metrics is None:
             other_metrics = []
         elif isinstance(other_metrics, str):
             other_metrics = [other_metrics]
-        if isinstance(metric, str):
-            metric = [metric]
-        all_metrics = sorted(set(metric + other_metrics))
+        all_metrics = sorted(set([metric] + other_metrics))
         detailed_metric_info = OrderedDict()
         if detector_name is not None:
             detailed_metric_info['detector_name'] = detector_name
@@ -1934,12 +1006,12 @@ class Analysis(object):
             if m == 'generalized_poisson_llh':
                 name_vals_d['maps'] = data_dist.maps[0].generalized_poisson_llh(expected_values=generalized_poisson_hypo)
                 llh_binned = data_dist.maps[0].generalized_poisson_llh(expected_values=generalized_poisson_hypo, binned=True)
-                map_binned = Map(name=m,
+                map_binned = Map(name=metric,
                                 hist=np.reshape(llh_binned, data_dist.maps[0].shape),
                                 binning=data_dist.maps[0].binning
                     )
                 name_vals_d['maps_binned'] = MapSet(map_binned)
-                name_vals_d['priors'] = params.priors_penalties(metric=m)
+                name_vals_d['priors'] = params.priors_penalties(metric=metric)
                 detailed_metric_info[m] = name_vals_d
 
             else:
@@ -1963,14 +1035,12 @@ class Analysis(object):
                     )
                     maps_binned.append(map_binned)
                 name_vals_d['maps_binned'] = MapSet(maps_binned)
-                name_vals_d['priors'] = params.priors_penalties(metric=m)
+                name_vals_d['priors'] = params.priors_penalties(metric=metric)
                 detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
 
-
     def _minimizer_callable(self, scaled_param_vals, hypo_maker, data_dist,
-                            metric, sign, counter, fit_history, pprint, blind,
-                            external_priors_penalty=None):
+                            metric, counter, fit_history, pprint, blind, external_priors_penalty=None):
         """Simple callback for use by scipy.optimize minimizers.
 
         This should *not* in general be called by users, as `scaled_param_vals`
@@ -1997,11 +1067,8 @@ class Analysis(object):
             pseudo-data distribution (where the latter two are derived from
             simulation and so aren't technically "data").
 
-        metric : iterable of strings
+        metric : string or iterable of strings
             Metric by which to evaluate the fit. See Map
-
-        sign : +1 or -1
-            sign with which to multipy overall metric value
 
         counter : Counter
             Mutable object to keep track--outside this method--of the number of
@@ -2017,6 +1084,18 @@ class Analysis(object):
             User defined prior penalty function
 
         """
+        # Want to *maximize* e.g. log-likelihood but we're using a minimizer,
+        # so flip sign of metric in those cases.
+        if isinstance(metric, str):
+            metric = [metric]
+        sign = 0
+        for m in metric:
+            if m in METRICS_TO_MAXIMIZE and sign != +1:
+                sign = -1
+            elif m in METRICS_TO_MINIMIZE and sign != -1:
+                sign = +1
+            else:
+                raise ValueError('Defined metrics are not compatible')
 
         # Set param values from the scaled versions the minimizer works with
         hypo_maker._set_rescaled_free_params(scaled_param_vals) # pylint: disable=protected-access
@@ -2036,7 +1115,7 @@ class Analysis(object):
 
         except Exception as e:
             if blind:
-                logging.error('Failed to generate Asimov distribution.')
+                logging.error('Minimizer failed')
             else:
                 logging.error(
                     'Failed to generate Asimov distribution with free'
@@ -2080,18 +1159,15 @@ class Analysis(object):
                     'Failed when computing metric with free params %s',
                     hypo_maker.params.free
                 )
-
-        metric_val = self._calculate_metric_val(
-            data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
-            hypo_maker=hypo_maker, metric=metric, blind=blind,
-            external_priors_penalty=external_priors_penalty
-        )
+                logging.error(str(e))
+            raise
 
         # Report status of metric & params (except if blinded)
         if blind:
             msg = ('minimizer iteration: #%6d | function call: #%6d'
                    %(self._nit, counter.count))
         else:
+            #msg = '%s=%.6e | %s' %(metric, metric_val, hypo_maker.params.free)
             msg = '%s %s %s | ' %(('%d'%self._nit).center(6),
                                   ('%d'%counter.count).center(10),
                                   format(metric_val, '0.5e').rjust(12))
@@ -2101,21 +1177,19 @@ class Analysis(object):
         if pprint:
             sys.stdout.write('\r' + msg)
             sys.stdout.flush()
-            sys.stdout.write('\b' * len(msg))
         else:
             logging.trace(msg)
 
         counter += 1
 
-        # do record this
-        fit_history.append(
-            [metric_val] + [v.value.m for v in hypo_maker.params.free]
-        )
-
+        if not blind:
+            fit_history.append(
+                [metric_val] + [v.value.m for v in hypo_maker.params.free]
+            )
+            
         return sign*metric_val
 
-
-    def _minimizer_callback(self, xk, *args): # pylint: disable=unused-argument
+    def _minimizer_callback(self, xk): # pylint: disable=unused-argument
         """Passed as `callback` parameter to `optimize.minimize`, and is called
         after each iteration. Keeps track of number of iterations.
 
@@ -2125,174 +1199,286 @@ class Analysis(object):
             Parameter vector
 
         """
-
         self._nit += 1
 
-# --------------------------------------------------------------------------- #
-def test_optimize_discrete_selections(
-    pipeline_cfg='settings/pipeline/example.cfg'
-):
-    """Unit tests of `Analysis.optimize_discrete_selections`."""
+    # TODO: move the complexity of defining a scan into a class with various
+    # factory methods, and just pass that class to the scan method; we will
+    # surely want to use scanning over parameters in more general ways, too:
+    # * set (some) fixed params, then run (minimizer, scan, etc.) on free
+    #   params
+    # * set (some free or fixed) params, then check metric
+    # where the setting of the params is done for some number of values.
+    def scan(self, data_dist, hypo_maker, metric, hypo_param_selections=None,
+             param_names=None, steps=None, values=None, only_points=None,
+             outer=True, profile=True, minimizer_settings=None, outfile=None,
+             debug_mode=1, **kwargs):
+        """Set hypo maker parameters named by `param_names` according to
+        either values specified by `values` or number of steps specified by
+        `steps`, and return the `metric` indicating how well the data
+        distribution is described by each Asimov distribution.
 
-    from pisa.utils.minimization import override_min_opt
+        Some flexibility in how the user can specify `values` is allowed, based
+        upon the shapes of `param_names` and `values` and how the `outer` flag
+        is set.
 
-    hypo_maker = DistributionMaker(pipeline_cfg)
-    data_dist = hypo_maker.get_outputs(return_sum=True)
+        Either `values` or `steps` must be specified, but not both.
 
-    discrete_selections = ['earth', 'lead']
+        Parameters
+        ----------
+        data_dist : Sequence of MapSets or MapSet
+            Data distribution(s). These are what the hypothesis is tasked to
+            best describe during the optimization/comparison process.
 
-    for i, param in enumerate(sorted(hypo_maker.params.free)):
-        # just use two free parameters for testing
-        if i > 1:
-            param.is_fixed = True
+        hypo_maker : Detectors, DistributionMaker or instantiable thereto
+            Generates the expectation distribution under a particular
+            hypothesis. This typically has (but is not required to have) some
+            free parameters which will be modified by the minimizer to optimize
+            the `metric` in case `profile` is set to True.
 
-    # use defaults for the chosen FTYPE
-    local_minimizer_cfg = set_minimizer_defaults(
-        dict(
-            method='slsqp',
-            options=dict()
-        )
-    )
-    override_min_opt(local_minimizer_cfg, ('disp:False', ))
+        hypo_param_selections : None, string, or sequence of strings
+            A pipeline configuration can have param selectors that allow
+            switching a parameter among two or more values by specifying the
+            corresponding param selector(s) here. This also allows for a single
+            instance of a DistributionMaker to generate distributions from
+            different hypotheses.
 
-    a = Analysis()
-    try:
-        a.optimize_discrete_selections(
-            data_dist=data_dist, hypo_maker=hypo_maker, hypo_param_selections='nh',
-            extra_param_selections=discrete_selections, metric='chi2',
-            fit_settings=None, minimizer_settings=local_minimizer_cfg,
-            check_octant=True, reset_free=True,
-            randomize_params=hypo_maker.params.free.names, random_state=18,
-            other_metrics=None, blind=False, pprint=False,
-            external_priors_penalty=None
-        )
-    except OptimizeWarning:
-        logging.warn("Minimization was unsuccessful, but this is highly likely"
-                     " to be a glitch related to the chosen minimizer config.")
-# --------------------------------------------------------------------------- #
-def test_fit_hypo_minimizer(
-    pipeline_cfg='settings/pipeline/example.cfg',
-    fit_cfg='settings/fit/example_basinhopping_lbfgsb.cfg'
-):
-    """Unit tests of `Analysis._fit_hypo_minimizer`."""
+        metric : string or iterable of strings
+            The metric to use for optimization/comparison. Note that the
+            optimized hypothesis also has this metric evaluated and reported for
+            each of its output maps. Confer `pisa.core.map` for valid metrics.
 
-    from pisa.utils.minimization import override_min_opt
+        param_names : None, string, or sequence of strings
+            If None, assume all parameters are to be scanned; otherwise,
+            specifies only the name or names of parameters to be scanned.
 
-    hypo_maker = DistributionMaker(pipeline_cfg)
-    data_dist = hypo_maker.get_outputs(return_sum=True)
+        steps : None, integer, or sequence of integers
+            Number of steps to take within the allowed range of the parameter
+            (or parameters). Value(s) specified for `steps` must be >= 2. Note
+            that the endpoints of the range are always included, and numbers of
+            steps higher than 2 fill in between the endpoints.
 
-    for i, param in enumerate(sorted(hypo_maker.params.free)):
-        # just use two free parameters for testing
-        if i > 1:
-            param.is_fixed = True
+            * If integer...
+                  Take this many steps for each specified parameter.
+            * If sequence of integers...
+                  Take the coresponding number of steps within the allowed range
+                  for each specified parameter.
 
-    # use defaults for the chosen FTYPE
-    local_minimizer_cfg = set_minimizer_defaults(
-        dict(
-            method='l-bfgs-b',
-            options=dict()
-        )
-    )
-    override_min_opt(local_minimizer_cfg, ('disp:0',))
+        values : None, scalar, sequence of scalars, or sequence-of-sequences
+          * If scalar...
+                Set this value for the (one) param name in `param_names`.
+          * If sequence of scalars...
+              * if len(param_names) is 1, set its value to each number in the
+                sequence.
+              * otherwise, set each param in param_names to the corresponding
+                value in `values`. There must be the same number of param names
+                as values.
+          * If sequence of (sequences or iterables)...
+              * Each param name corresponds to one of the inner sequences, in
+                the order that the param names are specified.
+              * If `outer` is False, all inner sequences must have the same
+                length, and there will be one Asimov distribution generated for
+                each set of values across the inner sequences. In other words,
+                there will be a total of len(inner sequence) Asimov
+                distribution generated.
+              * If `outer` is True, the lengths of inner sequences needn't be
+                the same. This takes the outer product of the passed sequences
+                to arrive at the permutations of the parameter values that will
+                be used to produce Asimov distributions (essentially nested
+                loops over each parameter). E.g., if two params are scanned,
+                for each value of the first param's inner sequence, an Asimov
+                distribution is produced for every value of the second param's
+                inner sequence. In total, there will be
+                ``len(inner seq0) * len(inner seq1) * ...``
+                Asimov distributions produced.
 
-    a = Analysis()
-    try:
-        a._fit_hypo_minimizer(
-            data_dist=data_dist, hypo_maker=hypo_maker, metric='chi2',
-            minimizer_settings=local_minimizer_cfg,
-            randomize_params=True, random_state=18,
-            other_metrics=['mod_chi2'], pprint=False, blind=False,
-            external_priors_penalty=None
-        )
-    except OptimizeWarning:
-        logging.warn("Minimization was unsuccessful, but this is highly likely"
-                     " to be a glitch related to the chosen minimizer config.")
+        only_points : None, integer, or even-length sequence of integers
+            Only select subset of points to be analysed by specifying their
+            range of positions within the whole set (0-indexed, incremental).
+            For the lazy amongst us...
 
-    fit_settings = apply_fit_settings(fit_cfg, hypo_maker.params.free)
-    minimizer_settings = {
-        'global': fit_settings['minimize']['global'],
-        'local': local_minimizer_cfg
-    }
-    # ensure the fit finishes up quickly
-    override_min_opt(minimizer_settings['global'], ('niter_success:2', 'niter:5'))
-    try:
-        a._fit_hypo_minimizer( # pylint: disable=protected-access
-            data_dist=data_dist, hypo_maker=hypo_maker, metric='chi2',
-            minimizer_settings=minimizer_settings,
-            randomize_params=True, random_state=18,
-            other_metrics=['mod_chi2'], pprint=False, blind=False,
-            external_priors_penalty=None
-        )
-    except OptimizeWarning:
-        logging.warn("Minimization was unsuccessful, but this is highly likely"
-                     " to be a glitch related to the chosen minimizer config.")
-# --------------------------------------------------------------------------- #
-def test_fit_hypo_pull(
-    param_variations=None,
-    pipeline_cfg='settings/pipeline/example.cfg'
-):
-    """Unit tests of `Analysis._fit_hypo_pull`."""
+        outer : bool
+            If set to True and a sequence of sequences is passed for `values`,
+            the points scanned are the *outer product* of the inner sequences.
+            See `values` for a more detailed explanation.
 
-    data_maker = DistributionMaker(pipelines=pipeline_cfg)
-    hypo_maker = DistributionMaker(pipelines=pipeline_cfg)
+        profile : bool
+            If set to True, minimizes specified metric over all free parameters
+            at each scanned point. Otherwise keeps them at their nominal values
+            and only performs grid scan of the parameters specified in
+            `param_names`.
 
-    if param_variations is None:
-        param_variations = {
-            'aeff_scale': 0.05 * ureg.dimensionless,
-            'nue_numu_ratio': -0.1 * ureg.dimensionless
-        }
-    else:
-        for pname in param_variations:
-            assert pname in hypo_maker.params.names
-            hypo_maker.params[pname].is_fixed = False
+        minimizer_settings : dict
+            Dictionary containing the settings for minimization, which are
+            only needed if `profile` is set to True. Hint: it has proven useful
+            to sprinkle with a healthy dose of scepticism.
 
-    for pname, variation in param_variations.items():
-        nominal = data_maker.params[pname].nominal_value
-        data_maker.params[pname].value = nominal + variation.to(nominal.units)
+        outfile : string
+            Outfile to store results to. Will be updated at each scan step to
+            write out intermediate results to prevent loss of data in case
+            the apocalypse strikes after all.
 
-    data_dist = data_maker.get_outputs(return_sum=True)
+        debug_mode : int, either one of [0, 1, 2]
+            If set to 2, will add a wealth of minimisation history and physics
+            information to the output file. Otherwise, the output will contain
+            the essentials to perform an analysis (0), or will hopefully be
+            detailed enough for some simple debugging (1). Any other value for
+            `debug_mode` will be set to 2.
 
-    # we want to test whether we can get back the parameters
-    # varied away from nominal above
-    for param in hypo_maker.params.free:
-        if not param.name in param_variations:
-            param.is_fixed = True
+        """
 
-    pull_settings = {'params': [], 'values': []}
-    for pname in param_variations:
-        pull_settings['params'].append(pname)
-        param = hypo_maker.params[pname]
-        param.is_fixed = False
-        # set sensible ranges over which difference quotients are computed
-        # (don't have to include the true value of the parameter
-        # to fit it back)
-        if param.nominal_value.m > 0:
-            test_vals = [0.95*param.nominal_value, 1.05*param.nominal_value]
-        elif param.nominal_value.m == 0:
-            test_vals = [-0.05*param.nominal_value.units,
-                          0.05*param.nominal_value.units]
+        if debug_mode not in (0, 1, 2):
+            debug_mode = 2
+
+        # Either `steps` or `values` must be specified, but not both (xor)
+        assert (steps is None) != (values is None)
+
+        if isinstance(param_names, str):
+            param_names = [param_names]
+
+        nparams = len(param_names)
+        hypo_maker.select_params(hypo_param_selections)
+
+        if values is not None:
+            if np.isscalar(values):
+                values = np.array([values])
+                assert nparams == 1
+            for i, val in enumerate(values):
+                if not np.isscalar(val):
+                    # no scalar here, need a corresponding parameter name
+                    assert nparams >= i+1
+                else:
+                    # a scalar, can either have only one parameter or at least
+                    # this many
+                    assert nparams == 1 or nparams >= i+1
+                    if nparams > 1:
+                        values[i] = np.array([val])
+
         else:
-            test_vals = [1.05*param.nominal_value, 0.95*param.nominal_value]
-        pull_settings['values'].append(test_vals)
+            ranges = [hypo_maker.params[pname].range for pname in param_names]
+            if np.issubdtype(type(steps), int):
+                assert steps >= 2
+                values = [np.linspace(r[0], r[1], steps)*r[0].units
+                          for r in ranges]
+            else:
+                assert len(steps) == nparams
+                assert np.all(np.array(steps) >= 2)
+                values = [np.linspace(r[0], r[1], steps[i])*r[0].units
+                          for i, r in enumerate(ranges)]
 
-    a = Analysis()
-    fit_info = a._fit_hypo_pull( # pylint: disable=protected-access
-        data_dist=data_dist,
-        hypo_maker=hypo_maker,
-        pull_settings=pull_settings,
-        metric='chi2'
-    )
+        if nparams > 1:
+            steplist = [[(pname, val) for val in values[i]]
+                        for (i, pname) in enumerate(param_names)]
+        else:
+            steplist = [[(param_names[0], val) for val in values[0]]]
 
-    msg = 'fit vs. true parameter *pulls*:\n'
-    for pname, variation in param_variations.items():
-        true_pull = variation.to(hypo_maker.params[pname].nominal_value.units).m
-        fit_pull = fit_info['params'][pname].value - data_maker.params[pname].nominal_value
-        msg += ' '*12
-        msg += '%s: %.5f (fit) vs. %.5f (truth)\n' % (pname, fit_pull, true_pull)
-    logging.info(msg)
-# --------------------------------------------------------------------------- #
-if __name__ == "__main__":
-    set_verbosity(1)
-    test_optimize_discrete_selections()
-    test_fit_hypo_minimizer()
-    test_fit_hypo_pull()
+        #Number of steps must be > 0
+        assert len(steplist) > 0
+
+        points_acc = []
+        if only_points is not None:
+            assert len(only_points) == 1 or len(only_points) % 2 == 0
+            if len(only_points) == 1:
+                points_acc = only_points
+            for i in range(0, len(only_points)-1, 2):
+                points_acc.extend(
+                    list(range(only_points[i], 1 + only_points[i + 1]))
+                )
+
+        # Instead of introducing another multitude of tests above, check here
+        # whether the lists of steps all have the same length in case `outer`
+        # is set to False
+        if nparams > 1 and not outer:
+            assert np.all(len(steps) == len(steplist[0]) for steps in steplist)
+            loopfunc = zip
+        else:
+            # With single parameter, can use either `zip` or `product`
+            loopfunc = product
+
+        params = hypo_maker.params
+
+        # Fix the parameters to be scanned if `profile` is set to True
+        params.fix(param_names)
+
+        results = {'steps': {}, 'results': []}
+        results['steps'] = {pname: [] for pname in param_names}
+        for i, pos in enumerate(loopfunc(*steplist)):
+            if points_acc and i not in points_acc:
+                continue
+
+            msg = ''
+            for (pname, val) in pos:
+                params[pname].value = val
+                results['steps'][pname].append(val)
+                if isinstance(val, float):
+                    msg += '%s = %.2f '%(pname, val)
+                elif isinstance(val, ureg.Quantity):
+                    msg += '%s = %.2f '%(pname, val.magnitude)
+                else:
+                    raise TypeError("val is of type %s which I don't know "
+                                    "how to deal with in the output "
+                                    "messages."% type(val))
+            logging.info('Working on point ' + msg)
+            hypo_maker.update_params(params)
+
+            # TODO: consistent treatment of hypo_param_selections and scanning
+            if not profile or not hypo_maker.params.free:
+                logging.info('Not optimizing since `profile` set to False or'
+                             ' no free parameters found...')
+                best_fit = self.nofit_hypo(
+                    data_dist=data_dist,
+                    hypo_maker=hypo_maker,
+                    hypo_param_selections=hypo_param_selections,
+                    hypo_asimov_dist=hypo_maker.get_outputs(return_sum=True),
+                    metric=metric,
+                    **{k: v for k,v in kwargs.items() if k not in ["pprint","reset_free","check_octant"]}
+                )
+            else:
+                logging.info('Starting optimization since `profile` requested.')
+                best_fit, _ = self.fit_hypo(
+                    data_dist=data_dist,
+                    hypo_maker=hypo_maker,
+                    hypo_param_selections=hypo_param_selections,
+                    metric=metric,
+                    minimizer_settings=minimizer_settings,
+                    **kwargs
+                )
+                # TODO: serialisation!
+                for k in best_fit['minimizer_metadata']:
+                    if k in ['hess', 'hess_inv']:
+                        logging.debug("deleting %s", k)
+                        del best_fit['minimizer_metadata'][k]
+
+            best_fit['params'] = deepcopy(
+                best_fit['params'].serializable_state
+            )
+            if isinstance(best_fit['hypo_asimov_dist'], Sequence):
+                best_fit['hypo_asimov_dist'] = [deepcopy(
+                    best_fit['hypo_asimov_dist'][i].serializable_state
+                ) for i in range(len(best_fit['hypo_asimov_dist']))]
+            else:
+                best_fit['hypo_asimov_dist'] = deepcopy(
+                    best_fit['hypo_asimov_dist'].serializable_state
+                )
+
+            # decide which information to retain based on chosen debug mode
+            if debug_mode == 0 or debug_mode == 1:
+                try:
+                    del best_fit['fit_history']
+                    del best_fit['hypo_asimov_dist']
+                except KeyError:
+                    pass
+
+            if debug_mode == 0:
+                # torch the woods!
+                try:
+                    del best_fit['minimizer_metadata']
+                    del best_fit['minimizer_time']
+                except KeyError:
+                    pass
+
+            results['results'].append(best_fit)
+            if outfile is not None:
+                # store intermediate results
+                to_file(results, outfile)
+
+        return results

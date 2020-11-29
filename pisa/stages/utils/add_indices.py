@@ -83,5 +83,5 @@ class add_indices(Stage):
 
             self.data.representation = self.apply_mode
             for bin_i in range(self.apply_mode.tot_num_bins):
-                container['bin_{}_mask'.format(bin_i)] = new_array == bin_i
+                container['bin_{}_mask'.format(bin_i)] = container['bin_indices'] == bin_i
 
