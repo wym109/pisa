@@ -668,6 +668,7 @@ class Map(object):
         """
         import matplotlib as mpl
         import matplotlib.pyplot as plt
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
 
         cmap_seq = plt.cm.inferno
         cmap_seq.set_bad(color=(0.0, 0.2, 0.0), alpha=1)
@@ -706,6 +707,29 @@ class Map(object):
 
         # TODO: allow plotting of N-dimensional arrays: 1D should be simple; >
         # 2D by arraying them as 2D slices in the smallest dimension(s)
+        if len(self.binning) == 3 and 'pid' in self.binning.names:
+            divider = make_axes_locatable(ax)
+
+            # prepare some smaller axes:
+            small_axes = [ax]
+            for pid in range(1, self.binning['pid'].num_bins):
+                small_axes.append(divider.append_axes("right", size="100%", pad=0.1, sharey=ax))
+                small_axes[-1].yaxis.set_visible(False)
+
+            for pid in range(self.binning['pid'].num_bins):
+                to_plot = self.slice(pid=pid).squeeze()
+                to_plot.plot(symm=symm, logz=logz, vmin=vmin, vmax=vmax,
+                             ax=small_axes[pid], title=' %s (PID %i)'%(title, pid), 
+                             cmap=cmap, clabel=clabel, clabelsize=clabelsize,
+                             xlabelsize=xlabelsize, ylabelsize=ylabelsize, titlesize=titlesize,
+                             pcolormesh_kw=pcolormesh_kw, colorbar_kw=colorbar_kw,
+                             binlabel_format=binlabel_format, binlabel_colors=["white", "black"],
+                             binlabel_color_thresh=binlabel_color_thresh, binlabel_stripzeros=binlabel_stripzeros,
+                             )
+
+            return None
+
+
         if len(self.binning) == 2:
             to_plot = self
         else:
@@ -2612,6 +2636,10 @@ class MapSet(object):
             raise ValueError('Could not find map name "%s" among maps %s'
                              % (value, self.names))
         return self[idx]
+
+    def plot(self, *args, **kwargs):
+        for m in self.maps:
+            m.plot(*args, **kwargs)
 
     def apply_to_maps(self, attr, *args, **kwargs):
         if len(kwargs) != 0:
