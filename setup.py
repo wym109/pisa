@@ -94,6 +94,7 @@ INSTALL_REQUIRES = [
     'scipy>=0.17',
     'simplejson>=3.2',
     'tables',
+    'tabulate',
     'uncertainties',
     'llvmlite', # 0.31 gave an error "Type of #4 arg mismatch: i1 != i32" in pisa/stages/osc/layers.py", line 91
     'py-cpuinfo',

@@ -241,8 +241,6 @@ def test_prob3numba(ignore_fails=False, define_as_ref=False):
         # output:
         probabilities,
     )
-    probabilities
-    probabilities = probabilities.get("host")
 
     # Check that all probability matrices have no NaNs and are equal to one
     # another
@@ -584,7 +582,6 @@ def execute_func(func, func_kw):
         val = func_kw[arg_name]
         if arg_type.name.startswith("array"):
             arg_val = val.astype(arg_type.dtype.key)
-            arg_val = arg_val.get("host")
         else:
             arg_val = arg_type(val)
         typed_args[arg_name] = arg_val

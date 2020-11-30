@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function, division
 import numpy as np
 
 from pisa import FTYPE
-from pisa.core.pi_stage import Stage
+from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 from pisa.utils.log import logging

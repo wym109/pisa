@@ -45,7 +45,7 @@ class csv_data_hist(Stage):
 
         events = pd.read_csv(self.events_file)
 
-        container = Container('data')
+        container = Container('total')
         container.representation = self.calc_mode
 
         container['weights'] = events['count'].values.astype(FTYPE)

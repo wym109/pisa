@@ -18,7 +18,6 @@ from matplotlib.offsetbox import AnchoredText
 
 from pisa import FTYPE
 from pisa.core.map import Map, MapSet
-from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.format import tex_dollars, text2tex, tex_join
 from pisa.utils.log import logging
 
@@ -192,7 +191,7 @@ class Plotter(object):
 
     def plot_2d_array(self, map_set, n_rows=None, n_cols=None, fname=None,
                       **kwargs):
-        """plot all maps or transforms in a single plot"""
+        """plot all maps in a single plot"""
         if fname is None:
             fname = map_set.name
         # if dimensionality is 3, then still define a spli_axis automatically
@@ -380,7 +379,7 @@ class Plotter(object):
         self.stamp = stamp
 
     def plot_2d_map(self, map, cmap=None, **kwargs):
-        """plot map or transform on current axis in 2d"""
+        """plot map on current axis in 2d"""
         vmin = kwargs.pop('vmin', None)
         vmax = kwargs.pop('vmax', None)
         axis = plt.gca()

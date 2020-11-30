@@ -836,7 +836,7 @@ class Analysis(object):
             fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
                 data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist, generalized_poisson_hypo=generalized_poisson_dist,
                 params=hypo_maker.params, metric=metric[0], other_metrics=other_metrics,
-                detector_name=hypo_maker._detector_name
+                detector_name=hypo_maker.detector_name
             )
         fit_info['minimizer_time'] = minimizer_time * ureg.sec
         fit_info['num_distributions_generated'] = counter.count
@@ -962,7 +962,7 @@ class Analysis(object):
             fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
                 data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist, generalized_poisson_hypo=generalized_poisson_dist,
                 params=hypo_maker.params, metric=metric[0], other_metrics=other_metrics,
-                detector_name=hypo_maker._detector_name
+                detector_name=hypo_maker.detector_name
             )
 
         fit_info['minimizer_time'] = 0 * ureg.sec

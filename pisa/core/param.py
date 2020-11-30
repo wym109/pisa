@@ -15,6 +15,7 @@ from operator import setitem
 from os.path import join
 from shutil import rmtree
 import sys
+from tabulate import tabulate
 import tempfile
 
 import numpy as np
@@ -634,6 +635,36 @@ class ParamSet(MutableSequence, Set):
     @property
     def _by_name(self):
         return {obj.name: obj for obj in self._params}
+
+    def __repr__(self):
+        return self.tabulate(tablefmt="presto")
+
+    def _repr_html_(self):
+        return self.tabulate(tablefmt="html")
+
+    def tabulate(self, tablefmt="plain"):
+        headers = ['name', 'value', 'nominal_value', 'range', 'prior', 'units', 'is_fixed']
+        colalign=["right"] + ["center"] * (len(headers) -1 )
+        table = []
+        for p in self:
+            if (p.value is None or isinstance(p.value, (string_types, bool))):
+                table.append([p.name, p.value, p.nominal_value, p.range, p.prior, p.units, p.is_fixed])
+            else:
+                if p.range is not None:
+                    range_fmt = [r.m for r in p.range]
+                else:
+                    range_fmt = None
+                if p.prior is not None:
+                    if p.prior.kind == "gaussian":
+                        prior_fmt = "+/- %s"%p.prior.stddev.m
+                    elif p.prior.kind == "uniform":
+                        prior_fmt = "uniform"
+                    else:
+                        prior_fmt = p.prior
+                else:
+                    prior_fmt = p.prior
+                table.append([p.name, p.value.m, p.nominal_value.m, range_fmt, prior_fmt, p.units, p.is_fixed])
+        return tabulate(table, headers, tablefmt=tablefmt, colalign=colalign)
 
     def index(self, value):  # pylint: disable=arguments-differ
         """Return an integer index to the Param in this ParamSet indexed by
