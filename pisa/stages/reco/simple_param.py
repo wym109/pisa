@@ -452,14 +452,9 @@ class simple_param(Stage):
             true_energy = container["true_energy"]
             true_coszen = container["true_coszen"]
 
-
-            #
-            # Get reco energy
-            #
-
             # Create container if not already present
             if "reco_energy" not in container :
-                container.add_array_data( "reco_energy", np.full_like(true_energy,np.NaN,dtype=FTYPE) )
+                container['reco_energy'] = np.full_like(true_energy,np.NaN,dtype=FTYPE)
 
             # Create the reco energy variable
             if perfect_reco :
@@ -473,7 +468,7 @@ class simple_param(Stage):
                 )
 
             # Write to the container
-            np.copyto( src=reco_energy, dst=container["reco_energy"].get("host") )
+            container["reco_energy"][:] = reco_energy
             container.mark_changed("reco_energy")
 
 
@@ -483,7 +478,7 @@ class simple_param(Stage):
 
             # Create container if not already present
             if "reco_coszen" not in container :
-                container.add_array_data( "reco_coszen", np.full_like(true_coszen,np.NaN,dtype=FTYPE) )
+                container['reco_coszen'] = np.full_like(true_coszen,np.NaN,dtype=FTYPE)
 
             # Create the reco coszen variable
             if perfect_reco :
@@ -498,7 +493,7 @@ class simple_param(Stage):
                 )
 
             # Write to the container
-            np.copyto( src=reco_coszen, dst=container["reco_coszen"].get("host") )
+            container["reco_coszen"][:] = reco_coszen
             container.mark_changed("reco_coszen")
 
 
@@ -508,7 +503,7 @@ class simple_param(Stage):
 
             # Create container if not already present
             if "pid" not in container :
-                container.add_array_data( "pid", np.full_like(true_energy,np.NaN,dtype=FTYPE) )
+                container['pid'] = np.full_like(true_energy,np.NaN,dtype=FTYPE)
 
             # Create the PID variable
             if perfect_reco :
@@ -525,7 +520,7 @@ class simple_param(Stage):
                 )
 
             # Write to the container
-            np.copyto( src=pid, dst=container["pid"].get("host") )
+            container["pid"][:] = pid
             container.mark_changed("pid")
 
 
