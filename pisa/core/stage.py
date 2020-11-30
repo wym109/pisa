@@ -10,6 +10,7 @@ from collections import OrderedDict
 from collections.abc import Mapping
 import inspect
 import numpy as np
+from tabulate import tabulate
 from time import time
 
 from pisa.core.binning import MultiDimBinning
@@ -132,6 +133,13 @@ class Stage():
         self.calc_times = []
         self.apply_times = []
 
+
+    def __repr__(self):
+        return 'Stage "%s"'%(self.__class__.__name__)
+
+    def report_profile(self, detailed=False):
+        for stage in self.stages:
+            stage.report_profile(detailed=detailed)
 
     def report_profile(self, detailed=False):
         def format(times):

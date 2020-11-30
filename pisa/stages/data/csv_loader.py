@@ -10,6 +10,7 @@ import pandas as pd
 from pisa import FTYPE
 from pisa.core.stage import Stage
 from pisa.utils import vectorizer
+from pisa.utils.resources import find_resource
 from pisa.utils.profiler import profile
 from pisa.core.container import Container
 
@@ -33,7 +34,7 @@ class csv_loader(Stage):
     ):
 
         # instantiation args that should not change
-        self.events_file = events_file
+        self.events_file = find_resource(events_file)
 
         # init base class
         super().__init__(

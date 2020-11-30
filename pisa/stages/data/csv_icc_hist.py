@@ -11,6 +11,7 @@ from pisa import FTYPE
 from pisa.core.stage import Stage
 from pisa.utils import vectorizer
 from pisa.utils.profiler import profile
+from pisa.utils.resources import find_resource
 from pisa.core.container import Container
 
 
@@ -29,7 +30,7 @@ class csv_icc_hist(Stage):
         **std_kwargs,
     ):
         # instantiation args that should not change
-        self.events_file = events_file
+        self.events_file = find_resource(events_file)
 
         expected_params = ('atm_muon_scale',)
 

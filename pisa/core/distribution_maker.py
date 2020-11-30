@@ -13,6 +13,7 @@ from collections.abc import Mapping
 import inspect
 from itertools import product
 import os
+from tabulate import tabulate
 
 import numpy as np
 
@@ -180,6 +181,20 @@ class DistributionMaker(object):
                 )
 
             self.detector_name = name
+
+    def __repr__(self):
+        return self.tabulate(tablefmt="presto")
+
+    def _repr_html_(self):
+        return self.tabulate(tablefmt="html")
+
+    def tabulate(self, tablefmt="plain"):
+        headers = ['pipeline number', 'name', 'detector name', 'output_binning', 'output_key', 'profile']
+        colalign=["right"] + ["center"] * (len(headers) -1 )
+        table = []
+        for i, p in enumerate(self.pipelines):
+            table.append([i, p.name, p.detector_name, p.output_binning, p.output_key, p.profile])
+        return tabulate(table, headers, tablefmt=tablefmt, colalign=colalign)
 
     def __iter__(self):
         return iter(self._pipelines)

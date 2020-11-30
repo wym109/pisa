@@ -10,6 +10,7 @@ import pandas as pd
 from pisa import FTYPE
 from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
+from pisa.utils.resources import find_resource
 from pisa.core.container import Container
 from pisa.core.events_pi import EventsPi
 
@@ -30,7 +31,7 @@ class csv_data_hist(Stage):
                 ):
 
         # instantiation args that should not change
-        self.events_file = events_file
+        self.events_file = find_resource(events_file)
 
         expected_params = ()
 

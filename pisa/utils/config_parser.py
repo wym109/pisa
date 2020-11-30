@@ -615,7 +615,7 @@ def parse_pipeline_config(config):
                         "'%s'\n", bin_name, binning, kwargs
                     )
                     raise
-            binning_dict[binning] = MultiDimBinning(bins)
+            binning_dict[binning] = MultiDimBinning(bins, name=binning)
 
 
     stage_dicts = OrderedDict()

@@ -16,6 +16,7 @@ from importlib import import_module
 from itertools import product
 from inspect import getsource
 import os
+from tabulate import tabulate
 import traceback
 
 import numpy as np
@@ -99,7 +100,8 @@ class Pipeline(object):
 
         self.pisa_version = None
 
-        self.data = ContainerSet(config['pipeline']['name'])
+        self.name = config['pipeline']['name']
+        self.data = ContainerSet(self.name)
         self.detector_name = config['pipeline']['detector_name']
         self.output_binning = config['pipeline']['output_binning']
         self.output_key = config['pipeline']['output_key']
@@ -110,6 +112,24 @@ class Pipeline(object):
         self._config = config
         self._init_stages()
         self._source_code_hash = None
+
+    def __repr__(self):
+        return self.tabulate(tablefmt="presto")
+
+    def _repr_html_(self):
+        return self.tabulate(tablefmt="html")
+
+    def tabulate(self, tablefmt="plain"):
+        headers = ['stage number', 'name', 'calc_mode', 'apply_mode', 'has setup', 'has compute', 'has apply', 'N fixed params', 'N free params']
+        colalign=["right"] + ["center"] * (len(headers) -1 )
+        table = []
+        for i, s in enumerate(self.stages):
+            table.append([i, s.__class__.__name__, s.calc_mode, s.apply_mode])
+            table[-1].append(s.setup_function.__func__.__module__ == s.__class__.__module__)
+            table[-1].append(s.compute_function.__func__.__module__ == s.__class__.__module__)
+            table[-1].append(s.apply_function.__func__.__module__ == s.__class__.__module__)
+            table[-1] += [len(s.params.fixed), len(s.params.free)]
+        return tabulate(table, headers, tablefmt=tablefmt, colalign=colalign)
 
     def report_profile(self, detailed=False):
         for stage in self.stages:

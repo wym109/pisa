@@ -664,6 +664,8 @@ class ParamSet(MutableSequence, Set):
                 else:
                     prior_fmt = p.prior
                 table.append([p.name, p.value.m, p.nominal_value.m, range_fmt, prior_fmt, p.units, p.is_fixed])
+        if len(table) == 0:
+            return "Emptpy Params"
         return tabulate(table, headers, tablefmt=tablefmt, colalign=colalign)
 
     def index(self, value):  # pylint: disable=arguments-differ
