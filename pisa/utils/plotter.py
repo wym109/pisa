@@ -61,7 +61,7 @@ def inf2finite(x):
 
 class Plotter(object):
     """
-    Plotting library for PISA `Map`s, `MapSet`s, and `BinnedTensorTransform`s
+    Plotting library for PISA `Map`s and `MapSet`s
 
     Parameters
     ----------
@@ -295,10 +295,8 @@ class Plotter(object):
             map_set = MapSet([map_set])
         if isinstance(map_set, MapSet):
             n = len(map_set)
-        elif isinstance(map_set, TransformSet):
-            n = len([x for x in map_set])
         else:
-            raise TypeError('Expecting to plot a MapSet or TransformSet but '
+            raise TypeError('Expecting to plot a MapSet but '
                             'got %s'%type(map_set))
         if n_rows is None and n_cols is None:
             # TODO: auto row/cols
@@ -384,9 +382,7 @@ class Plotter(object):
         vmax = kwargs.pop('vmax', None)
         axis = plt.gca()
 
-        if isinstance(map, BinnedTensorTransform):
-            binning = map.input_binning
-        elif isinstance(map, Map):
+        if isinstance(map, Map):
             binning = map.binning
         else:
             raise TypeError('Unhandled `map` type %s' % map.__class__.__name__)

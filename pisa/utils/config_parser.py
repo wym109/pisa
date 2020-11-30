@@ -1413,5 +1413,3 @@ def parse_args():
 
 if __name__ == '__main__':
     test_parse_pipeline_config(**parse_args())
-    test_parse_minimizer_config()
-    test_parse_fit_config()
