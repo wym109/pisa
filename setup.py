@@ -267,7 +267,7 @@ def do_setup():
         author_email='jll1062+pisa@phys.psu.edu',
         url='http://github.com/icecubeopensource/pisa',
         cmdclass=cmdclasses,
-        python_requires='>=3.6' # f-strings, kwarg/dict ordering require Py>=3.6
+        python_requires='>=3.6', # f-strings, kwarg/dict ordering require Py>=3.6
         setup_requires=SETUP_REQUIRES,
         install_requires=INSTALL_REQUIRES,
         extras_require=EXTRAS_REQUIRE,
