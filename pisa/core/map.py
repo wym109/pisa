@@ -670,7 +670,7 @@ class Map(object):
         import matplotlib.pyplot as plt
         from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-        cmap_seq = plt.cm.inferno
+        cmap_seq = plt.cm.Spectral_r
         cmap_seq.set_bad(color=(0.0, 0.2, 0.0), alpha=1)
 
         cmap_div = plt.cm.RdBu_r
