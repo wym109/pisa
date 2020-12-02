@@ -93,8 +93,14 @@ class ContainerSet(object):
             name of containers to be linked under the given key
 
         """
-        containers = [self.__getitem__(name) for name in names]
-        logging.debug('Linking containers %s into %s'%(names, key))
+        # intersection of names for linking and available names
+
+        link_names = set(names) & set(self.names)
+        if len(link_names) < len(names):
+            logging.warning("Skipping containers %s in linking, as those are not present"%(set(names) - set(self.names)))
+
+        containers = [self.__getitem__(name) for name in link_names]
+        logging.debug('Linking containers %s into %s'%(link_names, key))
         new_container = VirtualContainer(key, containers)
         self.linked_containers.append(new_container)
 
