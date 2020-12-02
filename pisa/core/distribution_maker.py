@@ -215,6 +215,11 @@ class DistributionMaker(object):
         for pipeline in self:
             pipeline.run()
 
+    def setup(self):
+        """Setup (reset) all pipelines"""
+        for p in self:
+            p.setup()
+
     def get_outputs(self, return_sum=False, sum_map_name='total',
                     sum_map_tex_name='Total', **kwargs):
         """Compute and return the outputs.
@@ -426,7 +431,7 @@ class DistributionMaker(object):
 
         ana = Analysis()
         result = ana.fit_hypo(data, self, 
-            param_selections=param_selections,
+            hypo_param_selections=param_selections,
             metric=metric,
             minimizer_settings=minimizer_settings,
             reset_free=reset_free, 

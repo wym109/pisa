@@ -810,6 +810,8 @@ class ParamSet(MutableSequence, Set):
             If True, params not in this param set are appended.
 
         """
+        # make sure we're having a new object!
+        #obj = deepcopy(obj)
         if isinstance(obj, (Sequence, ParamSet)):
             for param in obj:
                 self.update(param, existing_must_match=existing_must_match,

@@ -279,7 +279,7 @@ class Detectors(object):
 
         ana = Analysis()
         result = ana.fit_hypo(data, self, 
-            param_selections=param_selections,
+            hypo_param_selections=param_selections,
             metric=metric,
             minimizer_settings=minimizer_settings,
             reset_free=reset_free, 

@@ -8,3 +8,4 @@ from .map import *
 from .param import *
 from .pipeline import *
 from .prior import *
+from .detectors import *

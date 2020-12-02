@@ -705,21 +705,35 @@ class Map(object):
         else:
             fig = ax.figure
 
-        # TODO: allow plotting of N-dimensional arrays: 1D should be simple; >
         # 2D by arraying them as 2D slices in the smallest dimension(s)
-        if len(self.binning) == 3 and 'pid' in self.binning.names:
+        if len(self.binning) == 3:
+
+            smallest_dim = self.binning.names[np.argmin(self.binning.shape)]
+
+            # we need to set the vmin and vmax now by hand:
+            if vmin is None:
+                vmin = uncertainties.nominal_value(self.hist.min())
+
+            if vmax is None:
+                vmax = uncertainties.nominal_value(self.hist.max())
+
+            if symm:
+                v = np.max([-vmin, vmax])
+                vmin = -v
+                vmax = v
+
             divider = make_axes_locatable(ax)
 
             # prepare some smaller axes:
             small_axes = [ax]
-            for pid in range(1, self.binning['pid'].num_bins):
+            for bin_idx in range(1, self.binning[smallest_dim].num_bins):
                 small_axes.append(divider.append_axes("right", size="100%", pad=0.1, sharey=ax))
                 small_axes[-1].yaxis.set_visible(False)
 
-            for pid in range(self.binning['pid'].num_bins):
-                to_plot = self.slice(pid=pid).squeeze()
+            for bin_idx in range(self.binning[smallest_dim].num_bins):
+                to_plot = self.slice(**{smallest_dim:bin_idx}).squeeze()
                 to_plot.plot(symm=symm, logz=logz, vmin=vmin, vmax=vmax,
-                             ax=small_axes[pid], title=' %s (PID %i)'%(title, pid), 
+                             ax=small_axes[bin_idx], title=' %s (%s bin %i)'%(title, smallest_dim, bin_idx), 
                              cmap=cmap, clabel=clabel, clabelsize=clabelsize,
                              xlabelsize=xlabelsize, ylabelsize=ylabelsize, titlesize=titlesize,
                              pcolormesh_kw=pcolormesh_kw, colorbar_kw=colorbar_kw,

@@ -268,11 +268,6 @@ class Pipeline(object):
                         )
                     )
 
-                service.data = self.data
-
-                # run setup on service
-                service.setup()
-
                 stages.append(service)
 
             except:
@@ -289,11 +284,12 @@ class Pipeline(object):
             param_selections.update(service.param_selections)
         param_selections = sorted(param_selections)
 
-        previous_stage = None
         for stage in stages:
             stage.select_params(param_selections, error_on_missing=False)
 
         self._stages = stages
+
+        self.setup()
 
     def get_outputs(self, output_binning=None, output_key=None):
         """Get MapSet output"""
@@ -325,6 +321,13 @@ class Pipeline(object):
         """Run the pipeline to compute"""
         for stage in self.stages:
             stage.run()
+
+    def setup(self):
+        """Setup (reset) all stages"""
+        self.data = ContainerSet(self.name)
+        for stage in self.stages:
+            stage.data = self.data
+            stage.setup()
 
     def update_params(self, params):
         """Update params for the pipeline.
@@ -431,7 +434,7 @@ class Pipeline(object):
 
         ana = Analysis()
         result = ana.fit_hypo(data, self, 
-            param_selections=param_selections,
+            hypo_param_selections=param_selections,
             metric=metric,
             minimizer_settings=minimizer_settings,
             reset_free=reset_free, 
