@@ -121,7 +121,7 @@ def histogram_np(sample, weights, binning, apply_weights=True):  # pylint: disab
     binning = MultiDimBinning(binning)
 
     bin_edges = [edges.magnitude for edges in binning.bin_edges]
-    if weights.ndim == 2:
+    if weights is not None and weights.ndim == 2:
         # that means it's 1-dim data instead of scalars
         hists = []
         for i in range(weights.shape[1]):

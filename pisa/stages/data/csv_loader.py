@@ -94,5 +94,4 @@ class csv_loader(Stage):
 
     def apply_function(self):
         for container in self.data:
-            container['weights'][:] = container['initial_weights']
-            container.mark_changed('weights')
+            container['weights'] = np.copy(container['initial_weights'])
