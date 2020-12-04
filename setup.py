@@ -92,6 +92,7 @@ INSTALL_REQUIRES = [
     'numpy>=1.17',
     'pint>=0.8.1', # see https://github.com/hgrecco/pint/issues/512
     'scipy>=0.17',
+    'pandas',
     'simplejson>=3.2',
     'tables',
     'tabulate',

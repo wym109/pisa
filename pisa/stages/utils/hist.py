@@ -40,19 +40,17 @@ class hist(Stage):  # pylint: disable=invalid-name
             # The two binning must be exclusive
             assert len(set(self.calc_mode.names) & set(self.apply_mode.names)) == 0
 
-            self.transform_binning = self.calc_mode + self.apply_mode
+            transform_binning = self.calc_mode + self.apply_mode
 
             # go to "events" mode to create the transforms
 
             for container in self.data:
                 self.data.representation = "events"
-
-                sample = [container[name] for name in self.transform_binning.names]
-                hist = histogram(sample, None, self.transform_binning, averaged=False)
-
-                self.data.representation = self.transform_binning
-
-                container['hist_transform'] = hist
+                sample = [container[name] for name in transform_binning.names]
+                hist = histogram(sample, None, transform_binning, averaged=False)
+                transform = hist.reshape(self.calc_mode.shape + (-1,))
+                self.data.representation = self.calc_mode
+                container['hist_transform'] = transform
 
     def apply_function(self):
 
@@ -73,26 +71,17 @@ class hist(Stage):  # pylint: disable=invalid-name
 
         if isinstance(self.calc_mode, MultiDimBinning):
 
-            #axes=((0,), (0,))
-
             for container in self.data:
 
                 container.representation = self.calc_mode
                 weights = container['weights']
-
-                self.data.representation = self.transform_binning
                 transform = container['hist_transform']
 
-                transform = transform.reshape(weights.shape[0], -1)
-
-                #hist = np.tensordot(transform, weights, axes=axes)
                 hist = weights @ transform
                 if self.error_method == 'sumw2':
-                    #sumw2 = np.tensordot(transform, np.square(weights), axes=axes)
                     sumw2 = np.square(weights) @ transform
 
                 container.representation = self.apply_mode
-
                 container['weights'] = hist
 
                 if self.error_method == 'sumw2':

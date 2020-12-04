@@ -198,6 +198,10 @@ class Param:
         self.nominal_value = value if nominal_value is None else nominal_value
         self.normalize_values = False
 
+
+    def __repr__(self):
+        return f"{self.name}, value: {self.value}, nominal_value: {self.nominal_value}, range: {self.range}, prior: {self.prior}, is_fixed: {self.is_fixed}"
+
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
@@ -601,6 +605,7 @@ class ParamSet(MutableSequence, Set):
                     "Unhandled type {}, arg #{}: {}".format(type(arg), arg_num, arg)
                 )
 
+                table.append([p.name, p.value, p.nominal_value, p.range, p.prior, p.units, p.is_fixed])
         param_sequence = []
         for param in param_sequence_:
             if isinstance(param, Mapping):

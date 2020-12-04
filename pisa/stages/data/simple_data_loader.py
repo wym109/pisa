@@ -210,5 +210,4 @@ class simple_data_loader(Stage):
     def apply_function(self):
         # reset weights to initial weights prior to downstream stages running
         for container in self.data:
-            container['weights'][:] = container['initial_weights']
-            container.mark_changed('weights')
+            container['weights'] = np.copy(container['initial_weights'])

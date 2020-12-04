@@ -80,4 +80,4 @@ class grid(Stage):
     def apply_function(self):
         # reset weights
         for container in self.data:
-            vectorizer.assign(container['initial_weights'], out=container['weights'])
+            container['weights'] = np.copy(container['initial_weights'])
