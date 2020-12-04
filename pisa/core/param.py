@@ -605,7 +605,6 @@ class ParamSet(MutableSequence, Set):
                     "Unhandled type {}, arg #{}: {}".format(type(arg), arg_num, arg)
                 )
 
-                table.append([p.name, p.value, p.nominal_value, p.range, p.prior, p.units, p.is_fixed])
         param_sequence = []
         for param in param_sequence_:
             if isinstance(param, Mapping):
