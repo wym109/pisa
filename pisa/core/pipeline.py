@@ -279,6 +279,14 @@ class Pipeline(object):
                 )
                 raise
 
+
+
+        # set parameters with an identical name to the same object
+        # otherwise we get inconsistent behaviour when setting repeated params
+        # See Isues #566 and #648
+        all_parans = self.params
+        self.update_params(all_parans, existing_must_match=True, extend=False)
+
         param_selections = set()
         for service in stages:
             param_selections.update(service.param_selections)
@@ -329,7 +337,7 @@ class Pipeline(object):
             stage.data = self.data
             stage.setup()
 
-    def update_params(self, params):
+    def update_params(self, params, existing_must_match=False, extend=False):
         """Update params for the pipeline.
 
         Note that any param in `params` in excess of those that already exist
@@ -340,9 +348,12 @@ class Pipeline(object):
         params : ParamSet
             Parameters to be updated
 
+        existing_must_match : bool
+        extend : bool
+
         """
         for stage in self:
-            stage.params.update_existing(params)
+            stage.params.update(params, existing_must_match=existing_must_match, extend=extend)
 
     def select_params(self, selections, error_on_missing=False):
         """Select a set of alternate param values/specifications.

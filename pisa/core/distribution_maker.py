@@ -183,6 +183,13 @@ class DistributionMaker(object):
 
             self.detector_name = name
 
+        # set parameters with an identical name to the same object
+        # otherwise we get inconsistent behaviour when setting repeated params
+        # See Isues #566 and #648
+        all_parans = self.params
+        for pipeline in self:
+            pipeline.update_params(all_parans, existing_must_match=True, extend=False)
+
     def __repr__(self):
         return self.tabulate(tablefmt="presto")
 
