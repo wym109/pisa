@@ -18,11 +18,10 @@ from pisa.core.bin_indexing import lookup_indices
 
 class simple_signal(Stage):
     """
-    random toy event generator PISA Pi class
+    random toy event generator PISA class
 
     Parameters
     ----------
-    data
     params
         Expected params .. ::
 
@@ -32,23 +31,11 @@ class simple_signal(Stage):
             seed : int
                 Seed to be used for random
 
-    input_names
-    output_names
-    debug_mode
-    calc_mode
-    apply_mode
-
     """
 
     def __init__(
         self,
-        data=None,
-        params=None,
-        input_names=None,
-        output_names=None,
-        debug_mode=None,
-        calc_mode=None,
-        apply_mode=None,
+        i**std_kwargs,
     ):
         expected_params = (  # parameters fixed during fit
             'n_events_data',
@@ -63,22 +50,11 @@ class simple_signal(Stage):
             'mu',
             'sigma')
 
-        # what keys are added or altered for the outputs during apply
-
         # init base class
         super().__init__(
-            data=data,
-            params=params,
             expected_params=expected_params,
-            input_names=input_names,
-            output_names=output_names,
-            debug_mode=debug_mode,
-            calc_mode=calc_mode,
-            apply_mode=apply_mode,
+            **std_kwargs,
         )
-
-        # doesn't calculate anything
-        assert self.calc_mode is None
 
     def setup_function(self):
         '''
@@ -109,12 +85,13 @@ class simple_signal(Stage):
         # Create a signal container, with equal weights
         #
         signal_container = Container('signal')
-        signal_container.data_specs = 'events'
+        signal_container.representation = 'events'
         # Populate the signal physics quantity over a uniform range
         signal_initial  = np.random.uniform(low=self.params.bkg_min.value.m,
                                                high=self.params.bkg_max.value.m,
                                                size=self.nsig)
 
+        # guys, seriouslsy....?! "stuff"??
         signal_container.add_array_data('stuff', signal_initial)
         # Populate its MC weight by equal constant factors
         signal_container.add_array_data('weights', np.ones(self.nsig, dtype=FTYPE)*1./self.stats_factor)
@@ -124,7 +101,7 @@ class simple_signal(Stage):
         #
         # Compute the bin indices associated with each event
         #
-        sig_indices = lookup_indices(sample=[signal_container['stuff']], binning=self.output_specs)
+        sig_indices = lookup_indices(sample=[signal_container['stuff']], binning=self.apply_mode)
         signal_container.add_array_data('bin_indices', sig_indices)
 
         #
@@ -145,7 +122,7 @@ class simple_signal(Stage):
         if self.nbkg > 0:
 
             bkg_container = Container('background')
-            bkg_container.data_specs = 'events'
+            bkg_container.representation = 'events'
             # Create a set of background events
             initial_bkg_events = np.random.uniform(low=self.params.bkg_min.value.m, high=self.params.bkg_max.value.m, size=self.nbkg)
             bkg_container.add_array_data('stuff', initial_bkg_events)
@@ -153,8 +130,7 @@ class simple_signal(Stage):
             bkg_container.add_array_data('weights', np.ones(self.nbkg)*1./self.stats_factor)
             bkg_container.add_array_data('errors',(np.ones(self.nbkg)*1./self.stats_factor)**2. )
             # compute their bin indices
-            bkg_indices = lookup_indices(sample=[bkg_container['stuff']], binning=self.output_specs)
-            bkg_indices = bkg_indices.get('host')
+            bkg_indices = lookup_indices(sample=[bkg_container['stuff']], binning=self.apply_mode)
             bkg_container.add_array_data('bin_indices', bkg_indices)
             # Add bin indices mask (used in generalized poisson llh)
             for bin_i in range(self.apply_mode.tot_num_bins):
@@ -168,8 +144,8 @@ class simple_signal(Stage):
         # Add the binned counterpart of each events container
         #
         for container in self.data:
-            container.array_to_binned('weights', binning=self.output_specs, averaged=False)
-            container.array_to_binned('errors', binning=self.output_specs, averaged=False)
+            container.array_to_binned('weights', binning=self.apply_mode, averaged=False)
+            container.array_to_binned('errors', binning=self.apply_mode, averaged=False)
 
 
     def apply_function(self):
@@ -198,7 +174,7 @@ class simple_signal(Stage):
                 #
                 # Signal is a gaussian pdf, weighted to account for the MC statistics and the signal fraction
                 #
-                reweighting = norm.pdf(container['stuff'].get('host'), loc=self.params['mu'].value.m, scale=self.params['sigma'].value.m)/self.stats_factor
+                reweighting = norm.pdf(container['stuff'], loc=self.params['mu'].value.m, scale=self.params['sigma'].value.m)/self.stats_factor
                 reweighting/=np.sum(reweighting)
                 reweighting*=(self.nsig/self.stats_factor)
 
@@ -207,56 +183,16 @@ class simple_signal(Stage):
                 #
                 # New MC errors = MCweights squared
                 #
-                background = np.random.uniform(low=self.params.bkg_min.value.m,
-                                               high=self.params.bkg_max.value.m,
-                                               size=self.nbkg)
-
-                container['stuff'] = background
-
-            #
-            # Recompute the bin indices associated with each event
-            #
-            new_array = lookup_indices(
-                sample=[container['stuff']], binning=self.apply_mode)
-            container["bin_indices"] = new_array
-
-            for bin_i in range(self.apply_mode.tot_num_bins):
-                container['bin_{}_mask'.format(bin_i)] = new_array == bin_i
-
-        #
-        # Re-bin the data
-        #
-        for container in self.data:
-
-            #
-            #  Recalculate the number of MC events per bin, if the array already exists
-            #
-            if "n_mc_events" in container.binned_data.keys():
-
-                self.data.representation = 'events'
-                nevents_sim = np.zeros(self.apply_mode.tot_num_bins)
-
-                for index in range(self.apply_mode.tot_num_bins):
-                    index_mask = container['bin_{}_mask'.format(index)]
-                    current_weights = container['weights'][index_mask]
-                    n_weights = current_weights.shape[0]
-
-                    # Number of MC events in each bin
-                    nevents_sim[index] = n_weights
-
-                self.data.representation = self.apply_mode
-                np.copyto(src=nevents_sim,
-                          dst=container["n_mc_events"])
-
+                new_errors = reweighting**2.
 
                 #
                 # Replace the weight information in the signal container
                 #
-                np.copyto(src=reweighting, dst=container["weights"].get('host'))
-                np.copyto(src=new_errors, dst=container['errors'].get('host'))
+                np.copyto(src=reweighting, dst=container["weights"])
+                np.copyto(src=new_errors, dst=container['errors'])
                 container['weights'].mark_changed()
                 container['errors'].mark_changed()
 
                 # Re-bin the events weight into new histograms
-                container.array_to_binned('weights', binning=self.output_specs, averaged=False)
-                container.array_to_binned('errors', binning=self.output_specs, averaged=False)
+                container.array_to_binned('weights', binning=self.apply_mode, averaged=False)
+                container.array_to_binned('errors', binning=self.apply_mode, averaged=False)
