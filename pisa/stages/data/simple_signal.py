@@ -35,7 +35,7 @@ class simple_signal(Stage):
 
     def __init__(
         self,
-        i**std_kwargs,
+        **std_kwargs,
     ):
         expected_params = (  # parameters fixed during fit
             'n_events_data',
