@@ -227,6 +227,8 @@ def do_setup():
 
         'resources/events/*.hdf5',
         'resources/events/*.json*',
+        'resources/events/IceCube_3y_oscillations/*.csv',
+        'resources/events/IceCube_3y_oscillations/*.csv.bz2',
 
         'resources/flux/*.d',
         'resources/osc/*.hdf5',
