@@ -1085,7 +1085,11 @@ class Analysis(object):
         blind : bool
 
         external_priors_penalty : func
-            User defined prior penalty function
+            User defined prior penalty function, which takes `hypo_maker` and 
+            `metric` as arguments and returns numerical value of penalty to 
+            the metric value. It is expected sign of the penalty is correctly 
+            specified inside the `external_priors_penalty` (e.g. negative for 
+            llh or positive for chi2).
 
         """
         # Want to *maximize* e.g. log-likelihood but we're using a minimizer,
@@ -1190,6 +1194,9 @@ class Analysis(object):
             fit_history.append(
                 [metric_val] + [v.value.m for v in hypo_maker.params.free]
             )
+
+        if external_priors_penalty is not None:
+            metric_val += external_priors_penalty(hypo_maker=hypo_maker,metric=metric)
             
         return sign*metric_val
 
