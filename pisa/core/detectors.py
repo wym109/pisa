@@ -413,6 +413,7 @@ def test_Detectors(verbosity=Levels.WARN):
     model.reset_free()
     model.params.opt_eff_lateral.value = 20 # shared parameter
     model.params.aeff_scale.value = 2       # only changes value for detector1
+
     update_param_values_detector(model, model.params)
     
     o0 = model.distribution_makers[0].params.opt_eff_lateral.value.magnitude
