@@ -575,7 +575,8 @@ class Map(object):
              xlabelsize=None, ylabelsize=None, titlesize=None, fig_kw=None,
              pcolormesh_kw=None, colorbar_kw=None, outdir=None, fname=None,
              fmt=None, binlabel_format=None, binlabel_colors=["white", "black"],
-             binlabel_color_thresh=None, binlabel_stripzeros=True, bad_color=None):
+             binlabel_color_thresh=None, binlabel_stripzeros=True, dpi=300,
+             bad_color=None):
         """Plot a 2D map.
 
         Parameters
@@ -657,7 +658,8 @@ class Map(object):
             number use the first color in `binlabel_colors` and bins with a value above
             the given number use the second color in `binlabel_colors`. If "auto", set
             threshold automatically (basically half way).
-
+        dpi : int, optional
+            Dots per inch for saved figure. Default: 300
         bad_color : string, optional
             Can choose the color used for "bad" bins (e.g. NaN) 
 
@@ -708,7 +710,7 @@ class Map(object):
         else:
             fig = ax.figure
 
-        # 2D by arraying them as 2D slices in the smallest dimension(s)
+        # 2D by arraying them as 1D slices in the smallest dimension(s)
         if len(self.binning) == 3:
 
             smallest_dim = self.binning.names[np.argmin(self.binning.shape)]
@@ -734,16 +736,23 @@ class Map(object):
                 small_axes[-1].yaxis.set_visible(False)
 
             for bin_idx, to_plot in enumerate(self.split(smallest_dim)):
-                to_plot.plot(symm=symm, logz=logz, vmin=vmin, vmax=vmax,
-                             ax=small_axes[bin_idx], 
-                             cmap=cmap, clabel=clabel, clabelsize=clabelsize,
-                             xlabelsize=xlabelsize, ylabelsize=ylabelsize, titlesize=titlesize,
-                             pcolormesh_kw=pcolormesh_kw, colorbar_kw=colorbar_kw,
-                             binlabel_format=binlabel_format, binlabel_colors=["white", "black"],
-                             binlabel_color_thresh=binlabel_color_thresh, binlabel_stripzeros=binlabel_stripzeros,
-                             )
+                _, _, pcmesh, colorbar = to_plot.plot(
+                    symm=symm, logz=logz, vmin=vmin, vmax=vmax,
+                    ax=small_axes[bin_idx], cmap=cmap, clabel=clabel,
+                    clabelsize=clabelsize, xlabelsize=xlabelsize,
+                    ylabelsize=ylabelsize, titlesize=titlesize,
+                    pcolormesh_kw=pcolormesh_kw, colorbar_kw=colorbar_kw,
+                    binlabel_format=binlabel_format, binlabel_colors=["white", "black"],
+                    binlabel_color_thresh=binlabel_color_thresh, binlabel_stripzeros=binlabel_stripzeros,
+                    )
 
-            return None
+            if fmt is not None:
+                for fmt_ in fmt:
+                    path = os.path.join(outdir, fname + '.' + fmt_)
+                    fig.savefig(path, dpi=dpi)
+                    logging.debug('>>>> Plot for inspection saved at %s', path)
+
+            return fig, ax, pcmesh, colorbar
 
 
         if len(self.binning) == 2:
@@ -804,7 +813,7 @@ class Map(object):
             defaults['norm'] = mpl.colors.LogNorm(
                 vmin_, vmax_, clip=True
             )
-            
+
         for key, dflt_val in defaults.items():
             if key not in pcolormesh_kw:
                 pcolormesh_kw[key] = dflt_val
@@ -859,14 +868,14 @@ class Map(object):
         if fmt is not None:
             for fmt_ in fmt:
                 path = os.path.join(outdir, fname + '.' + fmt_)
-                fig.savefig(path)
+                fig.savefig(path, dpi=dpi)
                 logging.debug('>>>> Plot for inspection saved at %s', path)
 
         return fig, ax, pcmesh, colorbar
 
     @_new_obj
     def __deepcopy__(self, memo):
-        """ Hook for deepcopy to corrdctly handle hists """
+        """ Hook for deepcopy to correctly handle hists """
         return {}
 
     @_new_obj
@@ -3291,6 +3300,18 @@ def test_Map():
         assert m_orig[0, 0, :].binning[dim] == m_new[:, 0, 0].binning[dim]
 
     deepcopy(m_orig)
+
+    #FIXME: Add unit test for plot function:
+        # - test 3D *and* 2D case
+        # - test saving option works
+        # - test return types
+
+        # start implementing some
+        # test_return = xx.plot()
+        # assert test_return[0] == matplotlib.figure.Figure
+        # assert test_return[1] == matplotlib.axes._subplots.AxesSubplot
+        # assert test_return[2] == matplotlib.collections.QuadMesh
+        # assert test_return[3] == matplotlib.colorbar.Colorbar
 
     logging.info(str(('<< PASS : test_Map >>')))
 
