@@ -22,6 +22,7 @@ __version__ = "0.2"
 
 import cmath
 import math
+import numpy as np
 
 from pisa.utils.numba_tools import (
     myjit,
