@@ -39,6 +39,7 @@ class prob3(Stage):
             YeI : quantity (dimensionless)
             YeO : quantity (dimensionless)
             YeM : quantity (dimensionless)
+            density_scale : quantity (dimensionless)
             theta12 : quantity (angle)
             theta13 : quantity (angle)
             theta23 : quantity (angle)
@@ -75,6 +76,7 @@ class prob3(Stage):
       nsi_type=None,
       reparam_mix_matrix=False,
       neutrino_decay=False,
+      scale_density=False,
       **std_kwargs,
     ):
 
@@ -92,6 +94,10 @@ class prob3(Stage):
           'deltam31',
           'deltacp'
         )
+        
+        # Add (matter) density scale as free parameter?
+        if scale_density:
+            expected_params = expected_params + ('density_scale',)
       
         # Check whether and if so with which NSI parameters we are to work.
         if nsi_type is not None:
@@ -283,6 +289,12 @@ class prob3(Stage):
                 self.layers.calcLayers(container['true_coszen'])
                 container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
                 container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
+                
+        # Matter density scale is a free parameter?
+        if 'density_scale' in self.params.names:
+            density_scale = self.params.density_scale.value.m_as('dimensionless')
+        else:
+            density_scale = 1.
 
         # some safety checks on units
         # trying to avoid issue of angles with no dimension being assumed to be radians
@@ -353,7 +365,7 @@ class prob3(Stage):
         for container in self.data:
             self.calc_probs(container['nubar'],
                             container['true_energy'],
-                            container['densities'],
+                            container['densities']*density_scale,
                             container['distances'],
                             out=container['probability'],
                            )
