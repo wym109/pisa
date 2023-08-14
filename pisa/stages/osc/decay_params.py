@@ -51,7 +51,7 @@ class DecayParams(object):
         """Neutrino decay matrix"""
         decay_mat = np.zeros((3, 3), dtype=CTYPE)
 
-        decay_mat[2, 2] = np.complex(0, -self.decay_alpha3)
+        decay_mat[2, 2] = 0 -self.decay_alpha3*1j
 
         return decay_mat
     
