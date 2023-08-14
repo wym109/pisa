@@ -39,7 +39,8 @@ from inspect import getmodule, signature
 from os.path import join
 
 import numpy as np
-
+# import os
+# os.environ['PISA_FTYPE'] = 'single' # for checking unit test on single precision
 from pisa import FTYPE
 from pisa.utils.comparisons import ALLCLOSE_KW
 from pisa.utils.fileio import expand, from_file, to_file
