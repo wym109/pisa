@@ -114,7 +114,7 @@ class core_scaling_constrained(object):
         new_rho[4] = gamma * rho[4]
         new_rho[5] = rho[5]
 
-        tmp_array = np.zeros((len(radius), 2))
+        tmp_array = np.ones((len(radius), 2))
         if self.is_positive(new_rho):   # and self.is_descending(new_rho): ##turn this on if you want to put hydrostatic equilibrium condition
             tmp_array[:, 0] = radius
             
@@ -146,16 +146,16 @@ def extCalcLayers_scale(cz,
     r_detector     : radial position of the detector (float)
     prop_height    : height at which neutrinos are assumed to be produced (float)
     detector_depth : depth at which the detector is buried (float)
-    rhos_scale     : scaling factor for different layers (ndarray)
+    rhos           : densities (already weighted by electron fractions) (ndarray)
     radii          : radii defining the Earth's layer (ndarray)
     coszen         : coszen values corresponding to the radii above (ndarray)
     max_layers     : maximum number of layers it is possible to cross (int)
 
     Returns
     -------
-    
-    density_scale : array of scaling factors for diff layers, flattened from (cz, max_layers)
-    
+    n_layers : int number of layers
+    density : array of densities, flattened from (cz, max_layers)
+    distance : array of distances per layer, flattened from (cz, max_layers)
     
     """
 
@@ -187,7 +187,8 @@ def extCalcLayers_scale(cz,
             segments_lengths = segments_lengths[::-1]
             segments_lengths = np.concatenate((segments_lengths, np.zeros(radii.shape[0] - idx)))
 
-            density_scale = rhos_scale*(segments_lengths > 0.)
+            density_scale = rhos_scale.copy()
+            density_scale[(segments_lengths <= 0)] = 1
 
         else:
             #
@@ -236,7 +237,7 @@ def extCalcLayers_scale(cz,
             density_scale = np.concatenate((rhos_scale[inner_layer_mask],rhos_scale[inner_layer_mask][1:-1][::-1]))
 
             # As an extra precaution, set all densities that are not crossed to zero
-            density_scale*=(segments_lengths>0)
+            density_scale[(segments_lengths <= 0)] = 1
 
         # number_of_layers[i] = np.sum(segments_lengths > 0.)
         # append to the large list
@@ -250,10 +251,15 @@ def extCalcLayers_scale(cz,
 
 class Layers_scale(object):
     """
+    Calculate the path through earth for a given layer model with densities
+    (PREM [1]), the electron fractions (Ye) and an array of coszen values
+
     Parameters
     ----------
-    scale : 2d array (takes in tmp_array returned by scaling array function)
-        
+    prem_file : str
+        path to PREM file containing layer radii and densities as white space
+        separated txt
+
     detector_depth : float
         depth of detector underground in km
 
@@ -267,6 +273,9 @@ class Layers_scale(object):
             maximum number of layers (this is important for the shape of the
             output! if less than maximumm number of layers are crossed, it's
             filled up with 0s
+
+    n_layers : 1d int array of length len(cz)
+            number of layers crossed for every CZ value
 
     density : 1d float array of length (max_layers * len(cz))
             containing density values and filled up with 0s otherwise
@@ -356,7 +365,7 @@ class Layers_scale(object):
             Array of coszen values
 
         """
-        print(self.rhos_scale)
+        # print(self.rhos_scale)
         # run external function
         self._density_scale = extCalcLayers_scale(
             cz=cz,
