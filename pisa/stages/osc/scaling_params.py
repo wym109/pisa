@@ -146,16 +146,14 @@ def extCalcLayers_scale(cz,
     r_detector     : radial position of the detector (float)
     prop_height    : height at which neutrinos are assumed to be produced (float)
     detector_depth : depth at which the detector is buried (float)
-    rhos           : densities (already weighted by electron fractions) (ndarray)
+    rhos_scale     : scaling factor for different layers (ndarray)
     radii          : radii defining the Earth's layer (ndarray)
     coszen         : coszen values corresponding to the radii above (ndarray)
     max_layers     : maximum number of layers it is possible to cross (int)
 
     Returns
     -------
-    n_layers : int number of layers
-    density : array of densities, flattened from (cz, max_layers)
-    distance : array of distances per layer, flattened from (cz, max_layers)
+    density_scale : array of scaling factors for diff layers, flattened from (cz, max_layers)
     
     """
 
@@ -251,14 +249,9 @@ def extCalcLayers_scale(cz,
 
 class Layers_scale(object):
     """
-    Calculate the path through earth for a given layer model with densities
-    (PREM [1]), the electron fractions (Ye) and an array of coszen values
-
     Parameters
     ----------
-    prem_file : str
-        path to PREM file containing layer radii and densities as white space
-        separated txt
+    scale : 2d array (takes in tmp_array returned by scaling array function)
 
     detector_depth : float
         depth of detector underground in km
@@ -269,19 +262,10 @@ class Layers_scale(object):
 
     Attributes
     ----------
-    max_layers : int
-            maximum number of layers (this is important for the shape of the
-            output! if less than maximumm number of layers are crossed, it's
-            filled up with 0s
 
-    n_layers : 1d int array of length len(cz)
-            number of layers crossed for every CZ value
+    density_scale : 1d float array of length (max_layers * len(cz))
+            containing density values and filled up with 1s otherwise
 
-    density : 1d float array of length (max_layers * len(cz))
-            containing density values and filled up with 0s otherwise
-
-    distance : 1d float array of length (max_layers * len(cz))
-            containing distance values and filled up with 0s otherwise
 
     
 
