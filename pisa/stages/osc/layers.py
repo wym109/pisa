@@ -210,7 +210,7 @@ class Layers(object):
         http://www.sciencedirect.com/science/article/pii/300031920181900467
 
     """
-    def __init__(self, prem_file, detector_depth=1., prop_height=2.):
+    def __init__(self, prem_file, detector_depth=1., prop_height=2., scaling_array = None):
         # Load earth model
         if prem_file is not None :
             self.using_earth_model = True
@@ -224,7 +224,10 @@ class Layers(object):
             self.radii = prem[..., 0][::-1].astype(FTYPE)
             r_earth = prem[-1][0]
             self.default_elec_frac = 0.5
-
+            # print(self.rhos)
+            if scaling_array is not None:
+                self.rhos = self.rhos * scaling_array
+            # print(self.rhos)
             # Add an external layer corresponding to the atmosphere / production boundary
             self.radii = np.concatenate((np.array([r_earth+prop_height]), self.radii))
             self.rhos  = np.concatenate((np.ones(1, dtype=FTYPE), self.rhos))

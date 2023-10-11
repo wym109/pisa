@@ -153,11 +153,6 @@ class prob3(Stage):
                           'eps_mutau_phase',
                           'eps_tautau'
             )
-            
-        if self.neutrino_decay :
-            decay_params = ('decay_alpha3',)
-        else: 
-            decay_params = ()
 
         if self.tomography_type == None:
             tomography_params = ()
@@ -165,7 +160,14 @@ class prob3(Stage):
             tomography_params = ('density_scale',)
         elif self.tomography_type == 'mass_of_core':
             tomography_params = ('core_density_scale',)
+
             
+        if self.neutrino_decay :
+            decay_params = ('decay_alpha3',)
+        else: 
+            decay_params = ()
+
+          
         expected_params = expected_params + nsi_params + decay_params + tomography_params
 
         # init base class
@@ -178,11 +180,9 @@ class prob3(Stage):
         self.layers = None
         self.osc_params = None
         self.nsi_params = None
-        self.decay_params = None
-        self.decay_matrix = None
-        self.layers_scale = None
         self.tomography_params = None
-        self.scale_factors = None
+        self.decay_params = None
+        self.decay_matrix = None      
         # Note that the interaction potential (Hamiltonian) just scales with the
         # electron density N_e for propagation through the Earth,
         # even(to very good approx.) in the presence of generalised interactions
@@ -211,10 +211,7 @@ class prob3(Stage):
         elif self.nsi_type == 'standard':
             logging.debug('Working in standard NSI parameterization.')
             self.nsi_params = StdNSIParams()
-            
-        if self.neutrino_decay:
-            logging.debug('Working with neutrino decay')
-            self.decay_params = DecayParams()
+
 
         if self.tomography_type == "mass_of_earth":
             logging.debug('Working with a single density scaling factor.')
@@ -222,6 +219,13 @@ class prob3(Stage):
         elif self.tomography_type == "mass_of_core":
             logging.debug('Working with different scaling for different layers.')
             self.tomography_params = core_scaling_constrained()
+
+            
+        if self.neutrino_decay:
+            logging.debug('Working with neutrino decay')
+            self.decay_params = DecayParams()
+
+
 
         # setup the layers
         #if self.params.earth_model.value is not None:
@@ -231,13 +235,9 @@ class prob3(Stage):
         self.YeM = self.params.YeM.value.m_as('dimensionless')
         prop_height = self.params.prop_height.value.m_as('km')
         detector_depth = self.params.detector_depth.value.m_as('km')
-        self.layers = Layers(earth_model, detector_depth, prop_height)
+        self.layers = Layers(earth_model, detector_depth, prop_height,scaling_array=None)
         self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)
-        if self.tomography_type == 'mass_of_earth':
-            self.tomography_params.density_scale = self.params.density_scale.value.m_as('dimensionless')
-        elif self.tomography_type == 'mass_of_core':
-            self.tomography_params.core_density_scale = self.params.core_density_scale.value.m_as('dimensionless')
-            self.layers_scale = Layers_scale(self.tomography_params.scaling_array,detector_depth, prop_height)
+
 
         # --- calculate the layers ---
         if self.is_map:
@@ -252,9 +252,6 @@ class prob3(Stage):
             self.layers.calcLayers(container['true_coszen'])
             container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
             container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
-            if self.tomography_type == 'mass_of_core':
-                self.layers_scale.calcLayers_scale(container['true_coszen'])
-                self.scale_factors = self.layers_scale.density_scale.reshape((container.size, self.layers.max_layers))
 
         # don't forget to un-link everything again
         self.data.unlink_containers()
@@ -313,7 +310,7 @@ class prob3(Stage):
         YeM = self.params.YeM.value.m_as('dimensionless')
         prop_height = self.params.prop_height.value.m_as('km')
         detector_depth = self.params.detector_depth.value.m_as('km')
-
+        earth_model = find_resource(self.params.earth_model.value)
 
         if YeI != self.YeI or YeO != self.YeO or YeM != self.YeM:
             self.YeI = YeI; self.YeO = YeO; self.YeM = YeM
@@ -367,6 +364,23 @@ class prob3(Stage):
                 self.params.eps_mutau_phase.value.m_as('rad'))
             )
             self.nsi_params.eps_tautau = self.params.eps_tautau.value.m_as('dimensionless')
+        if self.tomography_type == "mass_of_earth":
+                self.tomography_params.density_scale = self.params.density_scale.value.m_as('dimensionless')
+                self.layers = Layers(earth_model, detector_depth, prop_height,scaling_array=self.tomography_params.density_scale)
+                self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)
+                for container in self.data:
+                    self.layers.calcLayers(container['true_coszen'])
+                    container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
+                    container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
+        elif self.tomography_type == "mass_of_core":
+                self.tomography_params.core_density_scale = self.params.core_density_scale.value.m_as('dimensionless')
+                self.layers = Layers(earth_model, detector_depth, prop_height,scaling_array=self.tomography_params.scaling_array)
+                self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)
+                for container in self.data:
+                    self.layers.calcLayers(container['true_coszen'])
+                    container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
+                    container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
+
         
         if self.neutrino_decay:
             self.decay_params.decay_alpha3 = self.params.decay_alpha3.value.m_as('eV**2')
@@ -396,24 +410,6 @@ class prob3(Stage):
             
 
         for container in self.data:
-            # print(container['densities'][0,:])
-            # print(container['densities'][-1,:])
-            if self.tomography_type == None:
-                container['densities'] =  container['densities']
-            elif self.tomography_type == "mass_of_earth":
-                self.tomography_params.density_scale = self.params.density_scale.value.m_as('dimensionless')
-                container['densities'] = container['densities']*self.tomography_params.density_scale
-            elif self.tomography_type == "mass_of_core":
-                self.tomography_params.core_density_scale = self.params.core_density_scale.value.m_as('dimensionless')
-                self.layers_scale = Layers_scale(self.tomography_params.scaling_array, detector_depth, prop_height)
-                self.layers_scale.calcLayers_scale(container['true_coszen'])
-                # print(self.layers_scale.density_scale[0,:])
-                # print(self.layers_scale.density_scale[-1,:])
-                # print(self.layers_scale.density_scale.shape)
-                # print(self.tomography_params.scaling_array)               
-                self.scale_factors = self.layers_scale.density_scale.reshape((container.size, self.layers.max_layers))                       
-                container['densities'] = container['densities']*self.scale_factors
-
             self.calc_probs(container['nubar'],
                             container['true_energy'],
                             # container['densities']*density_scale,
