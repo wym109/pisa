@@ -39,7 +39,7 @@ from inspect import getmodule, signature
 from os.path import join
 
 import numpy as np
-# import os
+import os
 # os.environ['PISA_FTYPE'] = 'single' # for checking unit test on single precision
 from pisa import FTYPE
 from pisa.utils.comparisons import ALLCLOSE_KW
@@ -67,6 +67,11 @@ from pisa.stages.osc.prob3numba.numba_osc_hostfuncs import (
 from pisa.stages.osc.nsi_params import (
     StdNSIParams,
     VacuumLikeNSIParams,
+)
+from pisa.stages.osc.scaling_params import (
+    mass_scaling,
+    core_scaling_w_constrain,
+    core_scaling_wo_constrain,
 )
 
 TEST_DATA_DIR = find_resource("osc/numba_osc_tests_data")
@@ -127,6 +132,23 @@ nsi_params = VacuumLikeNSIParams()
 nsi_params.eps_prime = 0.1
 mat_pot_vac_nsi_no = np.diag([1, 0, 0]).astype(np.complex128) + nsi_params.eps_matrix
 
+#mass of earth
+tomography_params= mass_scaling()
+tomography_params.density_scale =1.2
+scale = tomography_params.density_scale
+
+#mass of core with constraint
+tomography_params= core_scaling_w_constrain()
+tomography_params.core_density_scale = 0.9
+scale_array_w_constrain = tomography_params.scaling_array
+
+#mass of core without constraint
+tomography_params= core_scaling_wo_constrain()
+tomography_params.core_density_scale = 0.8
+tomography_params.middlemantle_density_scale= 0.8
+tomography_params.innermantle_density_scale= 0.8
+scale_array_wo_constrain = tomography_params.scaling_factor_array
+
 TEST_CASES = dict(
     nufit32_no=dict(),  # nufit 3.2 normal ordering (also overall) best-fit
     nufit32_no_nubar=dict(nubar=-1),  # NO but anti-neutrinos
@@ -161,6 +183,17 @@ TEST_CASES = dict(
     nufit32_std_decay=dict( # nufit 3.2 normal ordering with neutrino decay
         decay_flag=1,
         mat_decay=DEFAULTS["mat_decay"],
+    ),
+    nufit32_mass_of_earth_no=dict(
+        layer_densities=scale*DEFAULTS['layer_densities'],
+    ),
+    nufit32_mass_of_core_w_constrain_no=dict(
+        layer_distances=np.array([1221.50, 2258.50, 2221.0, 450.0, 220.0, 0.0])[::-1],
+        layer_densities=scale_array_w_constrain*np.array([13.0, 13.0, 10.96, 5.03, 3.7, 2.5])[::-1],
+    ),
+    nufit32_mass_of_core_wo_constrain_no=dict(
+        layer_distances=np.array([1221.50, 2258.50, 2221.0, 450.0, 220.0, 0.0])[::-1],
+        layer_densities=scale_array_wo_constrain*np.array([13.0, 13.0, 10.96, 5.03, 3.7, 2.5])[::-1],
     ),
 )
 
