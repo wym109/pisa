@@ -9,7 +9,6 @@ import numpy as np
 import os
 from pisa import FTYPE
 import numba
-# FTYPE = np.float32
 
 if numba is None:
     class jit(object):
@@ -23,7 +22,7 @@ else:
     ftype = numba.typeof(FTYPE(1))
 
 
-__all__ = ['mass_scaling','core_scaling_constrained','Layers_scale']
+__all__ = ['mass_scaling','core_scaling_w_constrain','core_scaling_wo_constrain']
 
 class mass_scaling():
     """
@@ -42,7 +41,7 @@ class mass_scaling():
         self._density_scale = value
     
 
-class core_scaling_constrained(object):
+class core_scaling_w_constrain(object):
     """
     Returns scaling factors for inner mantle and middle mantle by taking scaling factor of inner core and outer core as input.
     Scaling factor of inner and outer core = core_density_scale (alpha)
@@ -50,7 +49,7 @@ class core_scaling_constrained(object):
     Scaling factor of middle mantle = gamma
     Outer mantle not scaled
     This function solves the equations for two constraints: mass of earth and moment of inertia, by taking core_density_scale as an independent 
-    parameter, and returns scaling factor factors for inner and outer mantle.
+    parameter, and returns scaling factor factors for inner and middle mantle.
     
     """
     def __init__(self):
@@ -100,7 +99,7 @@ class core_scaling_constrained(object):
         M = a1 + b1 +c1 + d1 + e1
 
         alpha = self.core_density_scale
-        # alpha = 0.9
+        
 
         new_rho = np.zeros(6, dtype=FTYPE)
         gamma = ((I*c1-M*c2)-alpha*(c1*a2 - c2*a1)- alpha*(c1*b2-b1*c2)-(c1*e2 - e1*c2))/(c1*d2-d1*c2)
@@ -121,6 +120,55 @@ class core_scaling_constrained(object):
             tmp_array[3] = alpha
             tmp_array[4] = alpha
             tmp_array[5] = alpha
+            
+        return tmp_array
+
+class core_scaling_wo_constrain(object):
+    """
+    Takes scaling factors for core, inner mantle and outer mantle from pipeline and stores them in an array
+    
+    """
+    def __init__(self):
+        self._core_density_scale = 0.
+        self._innermantle_density_scale = 0.
+        self._middlemantle_density_scale = 0.
+
+    @property
+    def core_density_scale(self):
+        
+        return self._core_density_scale
+    
+    @core_density_scale.setter
+    def core_density_scale(self, value):
+        self._core_density_scale = value
+
+    @property
+    def innermantle_density_scale(self):
+        
+        return self._innermantle_density_scale
+    
+    @innermantle_density_scale.setter
+    def innermantle_density_scale(self, value):
+        self._innermantle_density_scale = value
+
+    @property
+    def middlemantle_density_scale(self):
+        
+        return self._middlemantle_density_scale
+    
+    @middlemantle_density_scale.setter
+    def middlemantle_density_scale(self, value):
+        self._middlemantle_density_scale = value
+
+    @property
+    def scaling_factor_array(self):
+
+        tmp_array = np.ones(6,dtype=FTYPE)
+        tmp_array[1] = self.middlemantle_density_scale
+        tmp_array[2] = self.innermantle_density_scale
+        tmp_array[3] = self.core_density_scale
+        tmp_array[4] = self.core_density_scale
+        tmp_array[5] = self.core_density_scale
             
         return tmp_array
 

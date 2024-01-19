@@ -185,6 +185,9 @@ class Layers(object):
     prop_height : float
         the production height of the neutrinos in the atmosphere in km (?)
 
+    scaling_array : numpy array
+        contains scaling factors for different layers. 
+
 
     Attributes
     ----------
@@ -224,10 +227,10 @@ class Layers(object):
             self.radii = prem[..., 0][::-1].astype(FTYPE)
             r_earth = prem[-1][0]
             self.default_elec_frac = 0.5
-            # print(self.rhos)
+            
             if scaling_array is not None:
                 self.rhos = self.rhos * scaling_array
-            # print(self.rhos)
+            
             # Add an external layer corresponding to the atmosphere / production boundary
             self.radii = np.concatenate((np.array([r_earth+prop_height]), self.radii))
             self.rhos  = np.concatenate((np.ones(1, dtype=FTYPE), self.rhos))
