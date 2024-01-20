@@ -18,7 +18,7 @@ from pisa.utils.profiler import profile
 from pisa.stages.osc.nsi_params import StdNSIParams, VacuumLikeNSIParams
 from pisa.stages.osc.osc_params import OscParams
 from pisa.stages.osc.decay_params import DecayParams
-from pisa.stages.osc.scaling_params import mass_scaling, core_scaling_w_constrain, core_scaling_wo_constrain
+from pisa.stages.osc.scaling_params import Mass_scaling, Core_scaling_w_constrain, Core_scaling_wo_constrain
 from pisa.stages.osc.layers import Layers
 from pisa.stages.osc.prob3numba.numba_osc_hostfuncs import propagate_array, fill_probs
 from pisa.utils.numba_tools import WHERE
@@ -223,13 +223,13 @@ class prob3(Stage):
 
         if self.tomography_type == "mass_of_earth":
             logging.debug('Working with a single density scaling factor.')
-            self.tomography_params = mass_scaling()
+            self.tomography_params = Mass_scaling()
         elif self.tomography_type == "mass_of_core_w_constrain":
             logging.debug('Working with different scaling for different layers.')
-            self.tomography_params = core_scaling_w_constrain()
+            self.tomography_params = Core_scaling_w_constrain()
         elif self.tomography_type == "mass_of_core_wo_constrain":
             logging.debug('Working without any external constraints')
-            self.tomography_params = core_scaling_wo_constrain()
+            self.tomography_params = Core_scaling_wo_constrain()
 
             
 

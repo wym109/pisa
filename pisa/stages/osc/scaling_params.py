@@ -22,9 +22,9 @@ else:
     ftype = numba.typeof(FTYPE(1))
 
 
-__all__ = ['mass_scaling','core_scaling_w_constrain','core_scaling_wo_constrain']
+__all__ = ['Mass_scaling','Core_scaling_w_constrain','Core_scaling_wo_constrain']
 
-class mass_scaling():
+class Mass_scaling():
     """
     Uses a single scaling factor for all the layers
     """
@@ -41,7 +41,7 @@ class mass_scaling():
         self._density_scale = value
     
 
-class core_scaling_w_constrain(object):
+class Core_scaling_w_constrain(object):
     """
     Returns scaling factors for inner mantle and middle mantle by taking scaling factor of inner core and outer core as input.
     Scaling factor of inner and outer core = core_density_scale (alpha)
@@ -123,7 +123,7 @@ class core_scaling_w_constrain(object):
             
         return tmp_array
 
-class core_scaling_wo_constrain(object):
+class Core_scaling_wo_constrain(object):
     """
     Takes scaling factors for core, inner mantle and outer mantle from pipeline and stores them in an array
     
