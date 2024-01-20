@@ -40,7 +40,7 @@ from os.path import join
 
 import numpy as np
 import os
-# os.environ['PISA_FTYPE'] = 'single' # for checking unit test on single precision
+os.environ['PISA_FTYPE'] = 'single' # for checking unit test on single precision
 from pisa import FTYPE
 from pisa.utils.comparisons import ALLCLOSE_KW
 from pisa.utils.fileio import expand, from_file, to_file
@@ -69,9 +69,9 @@ from pisa.stages.osc.nsi_params import (
     VacuumLikeNSIParams,
 )
 from pisa.stages.osc.scaling_params import (
-    mass_scaling,
-    core_scaling_w_constrain,
-    core_scaling_wo_constrain,
+    Mass_scaling,
+    Core_scaling_w_constrain,
+    Core_scaling_wo_constrain,
 )
 
 TEST_DATA_DIR = find_resource("osc/numba_osc_tests_data")
@@ -133,17 +133,17 @@ nsi_params.eps_prime = 0.1
 mat_pot_vac_nsi_no = np.diag([1, 0, 0]).astype(np.complex128) + nsi_params.eps_matrix
 
 #mass of earth
-tomography_params= mass_scaling()
+tomography_params= Mass_scaling()
 tomography_params.density_scale =1.2
 scale = tomography_params.density_scale
 
 #mass of core with constraint
-tomography_params= core_scaling_w_constrain()
+tomography_params= Core_scaling_w_constrain()
 tomography_params.core_density_scale = 0.9
 scale_array_w_constrain = tomography_params.scaling_array
 
 #mass of core without constraint
-tomography_params= core_scaling_wo_constrain()
+tomography_params= Core_scaling_wo_constrain()
 tomography_params.core_density_scale = 0.8
 tomography_params.middlemantle_density_scale= 0.8
 tomography_params.innermantle_density_scale= 0.8
