@@ -120,7 +120,7 @@ from pisa.utils.numba_tools import (
 
 @myjit
 def osc_probs_layers_kernel(
-    dm, mix, mat_pot, decay_flag, mat_decay, lri_pot, nubar, energy, density_in_layer, distance_in_layer, osc_probs
+    dm, mix, mat_pot, decay_flag, mat_decay, nubar, energy, density_in_layer, distance_in_layer, osc_probs
 ):
     """ Calculate oscillation probabilities
 
@@ -144,11 +144,6 @@ def osc_probs_layers_kernel(
         
     mat_decay : complex 2d array
         decay matrix with -j*alpha3 = [2,2] element
-        
-    lri_pot : real 2d array
-        Potential contribution due to matter with the consideration of 
-        Long Range Interaction. this potential not a generalised one, so 
-        it passed as a separate matrix.
 
     nubar : real int, scalar or Nd array (broadcast dim)
         1 for neutrinos, -1 for antineutrinos
@@ -261,7 +256,6 @@ def osc_probs_layers_kernel(
                         H_vac,
                         decay_flag,
                         H_decay,
-                        lri_pot,
                         dm,
                         transition_matrix,
                     )
@@ -312,7 +306,6 @@ def osc_probs_layers_kernel(
                     H_vac,
                     decay_flag,
                     H_decay,
-                    lri_pot,
                     dm,
                     transition_matrix,
                 )
@@ -337,9 +330,7 @@ def osc_probs_layers_kernel(
         else:
             raw_input_psi[i] = 1.0
 
-    
         matrix_dot_vector(transition_product, raw_input_psi, output_psi)
-        
         osc_probs[i][0] += output_psi[0].real ** 2 + output_psi[0].imag ** 2
         osc_probs[i][1] += output_psi[1].real ** 2 + output_psi[1].imag ** 2
         osc_probs[i][2] += output_psi[2].real ** 2 + output_psi[2].imag ** 2
@@ -357,7 +348,6 @@ def get_transition_matrix(
     H_vac,
     decay_flag,
     H_decay,
-    lri_pot,
     dm,
     transition_matrix,
 ):
@@ -399,11 +389,6 @@ def get_transition_matrix(
         
     decay_flag: int
         +1 forstandard oscillations + decay, -1 for standard oscillations
-        
-    lri_pot : real 2d array
-        Potential contribution due to matter with the consideration of 
-        Long Range Interaction. this potential not a generalised one, so 
-        it passed as a separate matrix.
 
     dm : real 2d array
         Mass splitting matrix, eV^2
@@ -430,14 +415,6 @@ def get_transition_matrix(
     # in the flavor basis
     
     get_H_mat(rho, mat_pot, nubar, H_mat)
-    
-    # Adding the LRI potential to H_mat(lri pot is 2d array with full of zeros in the absence of lri)
-    for i in range(3):
-        for j in range(3):
-            if nubar > 0:
-                H_mat[i, j] = H_mat[i, j] + lri_pot[i, j]*1e9 #eV/GeV
-            elif nubar < 0:
-                H_mat[i, j] = H_mat[i, j] - lri_pot[i, j]*1e9 #ev/Gev
     
     # Get the full Hamiltonian by adding together matter and vacuum parts
     one_over_two_e = 0.5 / energy

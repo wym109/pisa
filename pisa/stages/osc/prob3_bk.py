@@ -18,7 +18,6 @@ from pisa.utils.profiler import profile
 from pisa.stages.osc.nsi_params import StdNSIParams, VacuumLikeNSIParams
 from pisa.stages.osc.osc_params import OscParams
 from pisa.stages.osc.decay_params import DecayParams
-from pisa.stages.osc.lri_params import LRIParams
 from pisa.stages.osc.layers import Layers
 from pisa.stages.osc.prob3numba.numba_osc_hostfuncs import propagate_array, fill_probs
 from pisa.utils.numba_tools import WHERE
@@ -65,8 +64,6 @@ class prob3(Stage):
             eps_mutau_phase : quantity (angle)
             eps_tautau : quantity (dimensionless)
             decay_alpha3 : quantity (energy^2)
-            v_lri : quantity (eV)
-
 
     **kwargs
         Other kwargs are handled by Stage
@@ -80,7 +77,6 @@ class prob3(Stage):
       reparam_mix_matrix=False,
       neutrino_decay=False,
       scale_density=False,
-      lri_type=None,
       **std_kwargs,
     ):
 
@@ -159,22 +155,7 @@ class prob3(Stage):
         else: 
             decay_params = ()
             
-        if lri_type is not None:
-            choices = ['emu-symmetry', 'etau-symmetry', 'mutau-symmetry']
-            lri_type = lri_type.strip().lower()
-            if not lri_type in choices:
-                raise ValueError(
-                    'Chosen LRI symmetry type "%s" not available! Choose one of %s.'
-                    % (lri_type, choices)
-                )
-        self.lri_type = lri_type
-        
-        if self.lri_type is None:
-            lri_params = ()
-        else:
-            lri_params = ('v_lri',)
-            
-        expected_params = expected_params + nsi_params + decay_params + lri_params
+        expected_params = expected_params + nsi_params + decay_params
 
         # init base class
         super().__init__(
@@ -188,8 +169,6 @@ class prob3(Stage):
         self.nsi_params = None
         self.decay_params = None
         self.decay_matrix = None
-        self.lri_params = None
-        self.lri_pot = None
         # Note that the interaction potential (Hamiltonian) just scales with the
         # electron density N_e for propagation through the Earth,
         # even(to very good approx.) in the presence of generalised interactions
@@ -222,10 +201,6 @@ class prob3(Stage):
         if self.neutrino_decay:
             logging.debug('Working with neutrino decay')
             self.decay_params = DecayParams()
-         
-        if self.lri_type is not None:
-            logging.debug('Working with LRI')
-            self.lri_params = LRIParams()
 
         # setup the layers
         #if self.params.earth_model.value is not None:
@@ -287,7 +262,6 @@ class prob3(Stage):
                         self.gen_mat_pot_matrix_complex,
                         self.decay_flag,
                         self.decay_matix,
-                        self.lri_pot,
                         nubar,
                         e_array,
                         rho_array,
@@ -363,9 +337,6 @@ class prob3(Stage):
         
         if self.neutrino_decay:
             self.decay_params.decay_alpha3 = self.params.decay_alpha3.value.m_as('eV**2')
-            
-        if self.lri_type is not None:
-            self.lri_params.v_lri = self.params.v_lri.value.m_as('eV')
 
         # now we can proceed to calculate the generalised matter potential matrix
         std_mat_pot_matrix = np.zeros((3, 3), dtype=FTYPE) + 1.j * np.zeros((3, 3), dtype=FTYPE)
@@ -389,18 +360,6 @@ class prob3(Stage):
             logging.debug('Decay matrix:\n%s' % self.decay_params.decay_matrix)
         else :
             self.decay_matix = np.zeros((3, 3), dtype=FTYPE) + 1.j * np.zeros((3, 3), dtype=FTYPE)
-            
-        self.lri_pot = np.zeros((3, 3), dtype=FTYPE)
-        types_lri = ['emu-symmetry', 'etau-symmetry', 'etau-symmetry']
-        if self.lri_type is not None:               
-            if self.lri_type == 'emu-symmetry':
-                self.lri_pot = self.lri_params.potential_matrix_emu
-            elif self.lri_type == 'etau-symmetry':
-                self.lri_pot = self.lri_params.potential_matrix_etau
-            elif self.lri_type == 'mutau-symmetry':
-                self.lri_pot = self.lri_params.potential_matrix_mutau    
-            else:
-                raise Exception("Implemented symmetries are" % types_lri)
             
 
         for container in self.data:

@@ -69,8 +69,6 @@ from pisa.stages.osc.nsi_params import (
     VacuumLikeNSIParams,
 )
 
-from pisa.stages.osc.lri_params import LRIParams
-
 TEST_DATA_DIR = find_resource("osc/numba_osc_tests_data")
 
 FINFO_FTYPE = np.finfo(FTYPE)
@@ -93,12 +91,6 @@ MAT_DOT_MAT_SUBSCR = "in,nj->ij"
 # NOTE: !!DO NOT CHANGE!! (unless a function is incorrect) tests rely on these
 # ---------------------------------------------------------------------------- #
 
-#lri param
-lri_params = LRIParams()
-lri_params.v_lri = 1e-14
-lri_std_mat_pot = lri_params.potential_matrix_emu
-# print(lri_std_mat_pot)
-
 DEFAULTS = dict(
     energy=1,  # GeV
     state=1,
@@ -117,7 +109,6 @@ DEFAULTS = dict(
     dm31=2.494e-3,
     decay_flag=-1,
     mat_decay=np.diag([0, 0, -1.0e-4j ]).astype(np.complex128),
-    lri_pot=lri_std_mat_pot,
 )
 
 # define non-0 NSI parameters for non-vacuum NSI
@@ -170,9 +161,6 @@ TEST_CASES = dict(
     nufit32_std_decay=dict( # nufit 3.2 normal ordering with neutrino decay
         decay_flag=1,
         mat_decay=DEFAULTS["mat_decay"],
-    ),
-    nufit32_lri_std_mat=dict( #nufit 3.2 lri potential with std matter potential
-        lri_pot = lri_std_mat_pot
     ),
 )
 
@@ -261,7 +249,6 @@ def test_prob3numba(ignore_fails=False, define_as_ref=False):
         tc_["mat_pot"].astype(CX),
         tc_["decay_flag"],
         tc_["mat_decay"].astype(CX),
-        tc_["lri_pot"].astype(FX),
         nubars,
         energies,
         tc_["layer_densities"].astype(FX),
@@ -409,7 +396,6 @@ def run_test_case(tc_name, tc, ignore_fails=False, define_as_ref=False):
             mat_pot=tc_["mat_pot"],
             decay_flag=tc_["decay_flag"],
             mat_decay=tc_["mat_decay"],
-            lri_pot=tc_["lri_pot"],
             nubar=tc_["nubar"],
             energy=tc_["energy"],
             densities=tc_["layer_densities"],
@@ -453,7 +439,6 @@ def run_test_case(tc_name, tc, ignore_fails=False, define_as_ref=False):
             H_vac=H_vac_ref,
             decay_flag=tc_["decay_flag"],
             H_decay=H_decay_ref,
-            lri_pot=tc_["lri_pot"],
             dm=tc_["dm"],
             # output:
             transition_matrix=np.ones(shape=(3, 3), dtype=CX),
