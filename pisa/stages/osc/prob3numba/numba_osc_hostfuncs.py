@@ -58,29 +58,29 @@ IX = "i4" if ITYPE == np.int32 else "i8"
 
 
 @guvectorize(
-    [f"({FX}[:,:], {CX}[:,:], {CX}[:,:],  {IX}, {CX}[:,:], {IX}, {FX}, {FX}[:], {FX}[:], {FX}[:,:])"],
-    "(a,a), (a,a), (b,c), (), (b,c), (), (), (i), (i) -> (a,a)",
+    [f"({FX}[:,:], {CX}[:,:], {CX}[:,:],  {IX}, {CX}[:,:], {FX}[:,:], {IX}, {FX}, {FX}[:], {FX}[:], {FX}[:,:])"],
+    "(a,a), (a,a), (b,c), (), (b,c), (b,c), (), (), (i), (i) -> (a,a)",
     target=TARGET,
 )
-def propagate_array(dm, mix, mat_pot, decay_flag, mat_decay, nubar, energy, densities, distances, probability):
+def propagate_array(dm, mix, mat_pot, decay_flag, mat_decay, lri_pot, nubar, energy, densities, distances, probability):
     """wrapper to run `osc_probs_layers_kernel` from host (whether TARGET
     is "cuda" or "host")"""
     osc_probs_layers_kernel(
-        dm, mix, mat_pot, decay_flag, mat_decay, nubar, energy, densities, distances, probability
+        dm, mix, mat_pot, decay_flag, mat_decay, lri_pot, nubar, energy, densities, distances, probability
     )
 
 
 @njit(
-    [f"({FX}[:,:], {CX}[:,:], {CX}[:,:], {IX}, {CX}[:,:], {IX}, {FX}, {FX}[:], {FX}[:], {FX}[:,:])"],
+    [f"({FX}[:,:], {CX}[:,:], {CX}[:,:], {IX}, {CX}[:,:], {FX}[:,:], {IX}, {FX}, {FX}[:], {FX}[:], {FX}[:,:])"],
     parallel=TARGET == "parallel"
 )
 def propagate_scalar(
-    dm, mix, mat_pot, decay_flag, mat_decay, nubar, energy, densities, distances, probability
+    dm, mix, mat_pot, decay_flag, mat_decay, lri_pot, nubar, energy, densities, distances, probability
 ):
     """wrapper to run `osc_probs_layers_kernel` from host (whether TARGET
     is "cuda" or "host")"""
     osc_probs_layers_kernel(
-        dm, mix, mat_pot, decay_flag, mat_decay, nubar, energy, densities, distances, probability
+        dm, mix, mat_pot, decay_flag, mat_decay, lri_pot, nubar, energy, densities, distances, probability
     )
 
 
@@ -97,6 +97,7 @@ def propagate_scalar(
         f"{CX}[:,:], "  # H_vac
         f"{IX}, "       # neutrino decay flag
         f"{CX}[:,:], "  # H_decay
+        f"{FX}[:,:], "  # lri_pot
         f"{FX}[:,:], "  # dm
         f"{CX}[:,:], "  # transition_matrix
         ")"
@@ -114,6 +115,7 @@ def get_transition_matrix_hostfunc(
     H_vac,
     decay_flag,
     H_decay,
+    lri_pot,
     dm,
     transition_matrix,
 ):
@@ -130,6 +132,7 @@ def get_transition_matrix_hostfunc(
         H_vac,
         decay_flag,
         H_decay,
+        lri_pot,
         dm,
         transition_matrix,
     )
