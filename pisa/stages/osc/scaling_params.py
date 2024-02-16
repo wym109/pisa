@@ -26,7 +26,7 @@ __all__ = ['Mass_scaling','Core_scaling_w_constrain','Core_scaling_wo_constrain'
 
 class Mass_scaling():
     """
-    Uses a single scaling factor for all the layers
+    Uses a single scaling factor for all the layers. Scaling factor can be only positive.
     """
     def __init__(self):
         self._density_scale = 0.
