@@ -108,6 +108,7 @@ INSTALL_REQUIRES = [
     'scikit-learn<=1.1.2',
     'pyarrow',
     'tqdm',
+    'daemonflux',
 ]
 
 EXTRAS_REQUIRE = {
