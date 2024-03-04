@@ -268,7 +268,7 @@ class prob3(Stage):
         self.YeM = self.params.YeM.value.m_as('dimensionless')
         prop_height = self.params.prop_height.value.m_as('km')
         detector_depth = self.params.detector_depth.value.m_as('km')
-        self.layers = Layers(earth_model, detector_depth, prop_height,scaling_array=None)
+        self.layers = Layers(earth_model, detector_depth, prop_height)
         self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)
 
 
@@ -342,9 +342,6 @@ class prob3(Stage):
         YeI = self.params.YeI.value.m_as('dimensionless')
         YeO = self.params.YeO.value.m_as('dimensionless')
         YeM = self.params.YeM.value.m_as('dimensionless')
-        prop_height = self.params.prop_height.value.m_as('km')
-        detector_depth = self.params.detector_depth.value.m_as('km')
-        earth_model = find_resource(self.params.earth_model.value)
 
         if YeI != self.YeI or YeO != self.YeO or YeM != self.YeM:
             self.YeI = YeI; self.YeO = YeO; self.YeM = YeM
@@ -398,32 +395,23 @@ class prob3(Stage):
             
         if self.lri_type is not None:
             self.lri_params.v_lri = self.params.v_lri.value.m_as('eV')
-        if self.tomography_type == "mass_of_earth":
-                self.tomography_params.density_scale = self.params.density_scale.value.m_as('dimensionless')
-                self.layers = Layers(earth_model, detector_depth, prop_height,scaling_array=self.tomography_params.density_scale)
-                self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)
-                for container in self.data:
-                    self.layers.calcLayers(container['true_coszen'])
-                    container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
-                    container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
-        elif self.tomography_type == "mass_of_core_w_constrain":
-                self.tomography_params.core_density_scale = self.params.core_density_scale.value.m_as('dimensionless')
-                self.layers = Layers(earth_model, detector_depth, prop_height,scaling_array=self.tomography_params.scaling_array)
-                self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)
-                for container in self.data:
-                    self.layers.calcLayers(container['true_coszen'])
-                    container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
-                    container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
-        elif self.tomography_type == "mass_of_core_wo_constrain":
-                self.tomography_params.core_density_scale = self.params.core_density_scale.value.m_as('dimensionless')
-                self.tomography_params.innermantle_density_scale = self.params.innermantle_density_scale.value.m_as('dimensionless')
-                self.tomography_params.middlemantle_density_scale = self.params.middlemantle_density_scale.value.m_as('dimensionless')
-                self.layers = Layers(earth_model, detector_depth, prop_height,scaling_array=self.tomography_params.scaling_factor_array)
-                self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)
-                for container in self.data:
-                    self.layers.calcLayers(container['true_coszen'])
-                    container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
-                    container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
+        if self.tomography_type is not None:
+            if self.tomography_type == "mass_of_earth":
+                    self.tomography_params.density_scale = self.params.density_scale.value.m_as('dimensionless')
+                    self.layers.scaling(scaling_array=self.tomography_params.density_scale)
+            elif self.tomography_type == "mass_of_core_w_constrain":
+                    self.tomography_params.core_density_scale = self.params.core_density_scale.value.m_as('dimensionless')
+                    self.layers.scaling(scaling_array=self.tomography_params.scaling_array)
+            elif self.tomography_type == "mass_of_core_wo_constrain":
+                    self.tomography_params.core_density_scale = self.params.core_density_scale.value.m_as('dimensionless')
+                    self.tomography_params.innermantle_density_scale = self.params.innermantle_density_scale.value.m_as('dimensionless')
+                    self.tomography_params.middlemantle_density_scale = self.params.middlemantle_density_scale.value.m_as('dimensionless')
+                    self.layers.scaling(scaling_array=self.tomography_params.scaling_factor_array)
+            self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)        
+            for container in self.data:
+                self.layers.calcLayers(container['true_coszen'])
+                container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
+                container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
 
         
 
