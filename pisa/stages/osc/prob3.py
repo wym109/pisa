@@ -411,9 +411,7 @@ class prob3(Stage):
             for container in self.data:
                 self.layers.calcLayers(container['true_coszen'])
                 container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
-                container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
-
-        
+                        
 
         # now we can proceed to calculate the generalised matter potential matrix
         std_mat_pot_matrix = np.zeros((3, 3), dtype=FTYPE) + 1.j * np.zeros((3, 3), dtype=FTYPE)
