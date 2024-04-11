@@ -10,6 +10,7 @@ from daemonflux import Flux
 
 from pisa import FTYPE, TARGET
 from pisa.core.stage import Stage
+from pisa.core.param import Param
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from numba import jit
@@ -133,9 +134,14 @@ class daemon_flux(Stage):
                               'GSF_6',
                              ]
 
+        # add daemon_chi2 internal parameter to carry on chi2 penalty from daemonflux (using covar. matrix)
+        daemon_chi2 = Param(name='daemon_chi2', nominal_value=0., 
+                            value=0., prior=None, range=None, is_fixed=True)
+        std_kwargs['params'].update(daemon_chi2)
+
         # init base class
         super(daemon_flux, self).__init__(
-            expected_params=tuple(self.deamon_params),
+            expected_params=tuple(self.deamon_params+['daemon_chi2']),
             **std_kwargs,
         )
 
@@ -143,7 +149,7 @@ class daemon_flux(Stage):
 
         self.data.representation = self.calc_mode
 
-        self.flux_obj = Flux(location='IceCube')
+        self.flux_obj = Flux(location='IceCube', use_calibration=True)
 
         for container in self.data:
             container['nu_flux'] = np.empty((container.size, 2), dtype=FTYPE)
@@ -158,6 +164,10 @@ class daemon_flux(Stage):
         for i,k in enumerate(self.deamon_params):
             modif_param_dict[self.deamon_names[i]] = getattr(self.params, k).value.m_as("dimensionless")
 
+        # update chi2 parameter
+        self.params['daemon_chi2'].value = self.flux_obj.chi2(modif_param_dict)
+
+        # compute flux maps
         flux_map_numu    = make_2d_flux_map(self.flux_obj,
                                             particle = 'numu',
                                             params = modif_param_dict)

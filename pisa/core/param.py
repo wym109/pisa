@@ -862,6 +862,12 @@ class ParamSet(MutableSequence, Set):
         # I think because the changed units are cached in the object (Philipp)
         self.normalize_values = True
 
+        # store list of daemonflux params names for prior penalty calculation
+        self._daemon_names = ['K+_158G', 'K+_2P', 'K+_31G', 'K-_158G', 'K-_2P', 'K-_31G', 
+                              'n_158G', 'n_2P', 'p_158G', 'p_2P', 'pi+_158G', 'pi+_20T', 
+                              'pi+_2P', 'pi+_31G', 'pi-_158G', 'pi-_20T', 'pi-_2P', 'pi-_31G', 
+                              'GSF_1', 'GSF_2', 'GSF_3', 'GSF_4', 'GSF_5', 'GSF_6']
+
     @property
     def has_derived(self)->bool:
         """
@@ -1380,8 +1386,22 @@ class ParamSet(MutableSequence, Set):
         penalty : float sum of all parameters' prior values
 
         """
-        return np.sum([obj.prior_penalty(metric=metric)
-                       for obj in self._params])
+
+        # if daemonflux stage is not used use std priors penalty
+        if not "daemon_chi2" in self.names:
+            priors_sum = np.sum([obj.prior_penalty(metric=metric) 
+                                 for obj in self._params])
+
+        # else switch daemon flux params penalty to the one drom daemonflux
+        # (which takes into account covariance)
+        else:
+            # normal (non-correlated) penalty for non-daemonflux params
+            priors_sum = np.sum([obj.prior_penalty(metric=metric)
+                                 for obj in self._params if obj.name not in self._daemon_names])
+            # add daemonflux calcualted chi2 penalty
+            priors_sum += self._by_name["daemon_chi2"].value.m_as("dimensionless")
+
+        return priors_sum
 
     def priors_penalties(self, metric):
         """Return the prior penalties for each param at their current values.
