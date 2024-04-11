@@ -7,6 +7,7 @@ Maria Liubarska, J.P. Yanez 2023
 
 import numpy as np
 from daemonflux import Flux
+from daemonflux import __version__ as daemon_version
 
 from pisa import FTYPE, TARGET
 from pisa.core.stage import Stage
@@ -15,6 +16,7 @@ from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from numba import jit
 from scipy import interpolate
+from packaging.version import Version
 
 
 class daemon_flux(Stage):
@@ -81,6 +83,12 @@ class daemon_flux(Stage):
         self,
         **std_kwargs,
     ):
+
+        # first have to check daemonflux package version is >=0.8.0
+        # (have to do this to ensure chi2 prior penalty is calculated correctly)
+        if Version(daemon_version) < Version("0.8.0"):
+            logging.fatal("Detected daemonflux version below 0.8.0! This will lead to incorrect penalty calculation. You must update your daemonflux package to use this stage. You can do it by running 'pip install daemonflux --upgrade'")
+            raise Exception('detected daemonflux version < 0.8.0')
 
         self.deamon_params = ['K_158G',
                               'K_2P',
