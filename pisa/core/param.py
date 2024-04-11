@@ -863,10 +863,31 @@ class ParamSet(MutableSequence, Set):
         self.normalize_values = True
 
         # store list of daemonflux params names for prior penalty calculation
-        self._daemon_names = ['K+_158G', 'K+_2P', 'K+_31G', 'K-_158G', 'K-_2P', 'K-_31G', 
-                              'n_158G', 'n_2P', 'p_158G', 'p_2P', 'pi+_158G', 'pi+_20T', 
-                              'pi+_2P', 'pi+_31G', 'pi-_158G', 'pi-_20T', 'pi-_2P', 'pi-_31G', 
-                              'GSF_1', 'GSF_2', 'GSF_3', 'GSF_4', 'GSF_5', 'GSF_6']
+        self._daemon_names = ['K_158G',
+                              'K_2P',
+                              'K_31G',
+                              'antiK_158G',
+                              'antiK_2P',
+                              'antiK_31G',
+                              'n_158G',
+                              'n_2P',
+                              'p_158G',
+                              'p_2P',
+                              'pi_158G',
+                              'pi_20T',
+                              'pi_2P',
+                              'pi_31G',
+                              'antipi_158G',
+                              'antipi_20T',
+                              'antipi_2P',
+                              'antipi_31G',
+                              'GSF_1',
+                              'GSF_2',
+                              'GSF_3',
+                              'GSF_4',
+                              'GSF_5',
+                              'GSF_6',
+                              ]
 
     @property
     def has_derived(self)->bool:
