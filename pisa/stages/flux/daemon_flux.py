@@ -29,53 +29,53 @@ class daemon_flux(Stage):
     params: ParamSet
         Must have parameters: .. ::
 
-            K_158G : quantity (dimensionless)
+            daemon_K_158G : quantity (dimensionless)
 
-            K_2P : quantity (dimensionless)
+            daemon_K_2P : quantity (dimensionless)
 
-            K_31G : quantity (dimensionless)
+            daemon_K_31G : quantity (dimensionless)
 
-            antiK_158G : quantity (dimensionless)
+            daemon_antiK_158G : quantity (dimensionless)
 
-            antiK_2P : quantity (dimensionless)
+            daemon_antiK_2P : quantity (dimensionless)
 
-            antiK_31G : quantity (dimensionless)
+            daemon_antiK_31G : quantity (dimensionless)
 
-            n_158G : quantity (dimensionless)
+            daemon_n_158G : quantity (dimensionless)
 
-            n_2P : quantity (dimensionless)
+            daemon_n_2P : quantity (dimensionless)
 
-            p_158G : quantity (dimensionless)
+            daemon_p_158G : quantity (dimensionless)
 
-            p_2P : quantity (dimensionless)
+            daemon_p_2P : quantity (dimensionless)
 
-            pi_158G : quantity (dimensionless)
+            daemon_pi_158G : quantity (dimensionless)
 
-            pi_20T : quantity (dimensionless)
+            daemon_pi_20T : quantity (dimensionless)
 
-            pi_2P : quantity (dimensionless)
+            daemon_pi_2P : quantity (dimensionless)
 
-            pi_31G : quantity (dimensionless)
+            daemon_pi_31G : quantity (dimensionless)
 
-            antipi_158G : quantity (dimensionless)
+            daemon_antipi_158G : quantity (dimensionless)
 
-            antipi_20T : quantity (dimensionless)
+            daemon_antipi_20T : quantity (dimensionless)
 
-            antipi_2P : quantity (dimensionless)
+            daemon_antipi_2P : quantity (dimensionless)
 
-            antipi_31G : quantity (dimensionless)
+            daemon_antipi_31G : quantity (dimensionless)
 
-            GSF_1 : quantity (dimensionless)
+            daemon_GSF_1 : quantity (dimensionless)
 
-            GSF_2 : quantity (dimensionless)
+            daemon_GSF_2 : quantity (dimensionless)
 
-            GSF_3 : quantity (dimensionless)
+            daemon_GSF_3 : quantity (dimensionless)
 
-            GSF_4 : quantity (dimensionless)
+            daemon_GSF_4 : quantity (dimensionless)
 
-            GSF_5 : quantity (dimensionless)
+            daemon_GSF_5 : quantity (dimensionless)
 
-            GSF_6 : quantity (dimensionless)
+            daemon_GSF_6 : quantity (dimensionless)
 
     """
 
@@ -90,57 +90,15 @@ class daemon_flux(Stage):
             logging.fatal("Detected daemonflux version below 0.8.0! This will lead to incorrect penalty calculation. You must update your daemonflux package to use this stage. You can do it by running 'pip install daemonflux --upgrade'")
             raise Exception('detected daemonflux version < 0.8.0')
 
-        self.daemon_params = ['K_158G',
-                              'K_2P',
-                              'K_31G',
-                              'antiK_158G',
-                              'antiK_2P',
-                              'antiK_31G',
-                              'n_158G',
-                              'n_2P',
-                              'p_158G',
-                              'p_2P',
-                              'pi_158G',
-                              'pi_20T',
-                              'pi_2P',
-                              'pi_31G',
-                              'antipi_158G',
-                              'antipi_20T',
-                              'antipi_2P',
-                              'antipi_31G',
-                              'GSF_1',
-                              'GSF_2',
-                              'GSF_3',
-                              'GSF_4',
-                              'GSF_5',
-                              'GSF_6',
-                             ]
+        # create daemonflux Flux object
+        self.flux_obj = Flux(location='IceCube', use_calibration=True)
 
-        self.daemon_names =  ['K+_158G',
-                              'K+_2P',
-                              'K+_31G',
-                              'K-_158G',
-                              'K-_2P',
-                              'K-_31G',
-                              'n_158G',
-                              'n_2P',
-                              'p_158G',
-                              'p_2P',
-                              'pi+_158G',
-                              'pi+_20T',
-                              'pi+_2P',
-                              'pi+_31G',
-                              'pi-_158G',
-                              'pi-_20T',
-                              'pi-_2P',
-                              'pi-_31G',
-                              'GSF_1',
-                              'GSF_2',
-                              'GSF_3',
-                              'GSF_4',
-                              'GSF_5',
-                              'GSF_6',
-                             ]
+        # get parameter names from daemonflux
+        self.daemon_names = self.flux_obj.params.known_parameters
+
+        # make parameter names pisa config compatible and add prefix
+        self.daemon_params = ['daemon_'+p.replace('pi+','pi').replace('pi-','antipi').replace('K+','K').replace('K-','antiK') 
+                              for p in self.daemon_names]
 
         # add daemon_chi2 internal parameter to carry on chi2 penalty from daemonflux (using covar. matrix)
         daemon_chi2 = Param(name='daemon_chi2', nominal_value=0., 
@@ -156,8 +114,6 @@ class daemon_flux(Stage):
     def setup_function(self):
 
         self.data.representation = self.calc_mode
-
-        self.flux_obj = Flux(location='IceCube', use_calibration=True)
 
         for container in self.data:
             container['nu_flux'] = np.empty((container.size, 2), dtype=FTYPE)

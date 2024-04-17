@@ -862,33 +862,6 @@ class ParamSet(MutableSequence, Set):
         # I think because the changed units are cached in the object (Philipp)
         self.normalize_values = True
 
-        # store list of daemonflux params names for prior penalty calculation
-        self._daemon_names = ['K_158G',
-                              'K_2P',
-                              'K_31G',
-                              'antiK_158G',
-                              'antiK_2P',
-                              'antiK_31G',
-                              'n_158G',
-                              'n_2P',
-                              'p_158G',
-                              'p_2P',
-                              'pi_158G',
-                              'pi_20T',
-                              'pi_2P',
-                              'pi_31G',
-                              'antipi_158G',
-                              'antipi_20T',
-                              'antipi_2P',
-                              'antipi_31G',
-                              'GSF_1',
-                              'GSF_2',
-                              'GSF_3',
-                              'GSF_4',
-                              'GSF_5',
-                              'GSF_6',
-                              ]
-
     @property
     def has_derived(self)->bool:
         """
@@ -1418,7 +1391,7 @@ class ParamSet(MutableSequence, Set):
         else:
             # normal (non-correlated) penalty for non-daemonflux params
             priors_sum = np.sum([obj.prior_penalty(metric=metric)
-                                 for obj in self._params if obj.name not in self._daemon_names])
+                                 for obj in self._params if "daemon_" not in obj.name])
             # add daemonflux calcualted chi2 penalty
             priors_sum += self._by_name["daemon_chi2"].value.m_as("dimensionless")
 
