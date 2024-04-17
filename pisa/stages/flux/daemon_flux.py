@@ -1,5 +1,5 @@
 """
-Implementation of DEAMON flux (https://arxiv.org/abs/2303.00022) 
+Implementation of DAEMON flux (https://arxiv.org/abs/2303.00022) 
 by Juan Pablo Yañez and Anatoli Fedynitch for use in PISA.
 
 Maria Liubarska, J.P. Yanez 2023
@@ -21,7 +21,7 @@ from packaging.version import Version
 
 class daemon_flux(Stage):
     """
-    DEAMON fulx stage
+    DAEMON flux stage
     
     Parameters
     ----------
@@ -90,7 +90,7 @@ class daemon_flux(Stage):
             logging.fatal("Detected daemonflux version below 0.8.0! This will lead to incorrect penalty calculation. You must update your daemonflux package to use this stage. You can do it by running 'pip install daemonflux --upgrade'")
             raise Exception('detected daemonflux version < 0.8.0')
 
-        self.deamon_params = ['K_158G',
+        self.daemon_params = ['K_158G',
                               'K_2P',
                               'K_31G',
                               'antiK_158G',
@@ -116,7 +116,7 @@ class daemon_flux(Stage):
                               'GSF_6',
                              ]
 
-        self.deamon_names =  ['K+_158G',
+        self.daemon_names =  ['K+_158G',
                               'K+_2P',
                               'K+_31G',
                               'K-_158G',
@@ -149,7 +149,7 @@ class daemon_flux(Stage):
 
         # init base class
         super(daemon_flux, self).__init__(
-            expected_params=tuple(self.deamon_params+['daemon_chi2']),
+            expected_params=tuple(self.daemon_params+['daemon_chi2']),
             **std_kwargs,
         )
 
@@ -169,8 +169,8 @@ class daemon_flux(Stage):
 
         # get modified parameters (in units of sigma)
         modif_param_dict = {}
-        for i,k in enumerate(self.deamon_params):
-            modif_param_dict[self.deamon_names[i]] = getattr(self.params, k).value.m_as("dimensionless")
+        for i,k in enumerate(self.daemon_params):
+            modif_param_dict[self.daemon_names[i]] = getattr(self.params, k).value.m_as("dimensionless")
 
         # update chi2 parameter
         self.params['daemon_chi2'].value = self.flux_obj.chi2(modif_param_dict)
