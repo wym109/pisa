@@ -103,11 +103,17 @@ class daemon_flux(Stage):
         # add daemon_chi2 internal parameter to carry on chi2 penalty from daemonflux (using covar. matrix)
         daemon_chi2 = Param(name='daemon_chi2', nominal_value=0., 
                             value=0., prior=None, range=None, is_fixed=True)
-        std_kwargs['params'].update(daemon_chi2)
+
+        # saving number of parameters into a internal param in order to check that we don't have 
+        # non-daemonflux params with 'daemon_' in their name, which will make prior penalty calculation incorrect
+        daemon_params_len = Param(name='daemon_params_len', nominal_value=len(self.daemon_names)+2,
+                                  value=len(self.daemon_names)+2, prior=None, range=None, is_fixed=True)
+
+        std_kwargs['params'].update([daemon_chi2,daemon_params_len])
 
         # init base class
         super(daemon_flux, self).__init__(
-            expected_params=tuple(self.daemon_params+['daemon_chi2']),
+            expected_params=tuple(self.daemon_params+['daemon_chi2','daemon_params_len']),
             **std_kwargs,
         )
 
