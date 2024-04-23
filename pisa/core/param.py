@@ -1380,8 +1380,25 @@ class ParamSet(MutableSequence, Set):
         penalty : float sum of all parameters' prior values
 
         """
-        return np.sum([obj.prior_penalty(metric=metric)
-                       for obj in self._params])
+
+        # if daemonflux stage is not used use std priors penalty
+        if not "daemon_chi2" in self.names:
+            priors_sum = np.sum([obj.prior_penalty(metric=metric) 
+                                 for obj in self._params])
+
+        # else switch daemon flux params penalty to the one drom daemonflux
+        # (which takes into account covariance)
+        else:
+            # normal (non-correlated) penalty for non-daemonflux params
+            priors_sum = np.sum([obj.prior_penalty(metric=metric)
+                                 for obj in self._params if "daemon_" not in obj.name])
+
+            # conversion factor between chi2 and llh
+            conv_factor = -0.5 if metric in LLH_METRICS else 1
+            # add daemonflux calcualted chi2 penalty
+            priors_sum += conv_factor * self._by_name["daemon_chi2"].value.m_as("dimensionless")
+
+        return priors_sum
 
     def priors_penalties(self, metric):
         """Return the prior penalties for each param at their current values.

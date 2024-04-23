@@ -113,6 +113,13 @@ class Pipeline(object):
         self._init_stages()
         self._source_code_hash = None
 
+        # check in case someone decided to add a non-daemonflux parameter with daemon_
+        # in it, which would potentially make penalty calculation incorrect
+        if "daemon_chi2" in self.params.names:
+            num_daemon_params = len([name for name in self.params.names if "daemon_" in name])
+            assert num_daemon_params == self.params["daemon_params_len"].value.m_as("dimensionless"), \
+                    'Incorrect number of parameters with "daemon_" in their name detected. Non-daemonflux parameters can not have "daemon_" in their name. Rename your non-daemonflux parameters which do not comly!'
+
         self._covariance_set = False
 
     def __repr__(self):

@@ -1,5 +1,5 @@
 """
-Implementation of DEAMON flux (https://arxiv.org/abs/2303.00022) 
+Implementation of DAEMON flux (https://arxiv.org/abs/2303.00022) 
 by Juan Pablo Yañez and Anatoli Fedynitch for use in PISA.
 
 Maria Liubarska, J.P. Yanez 2023
@@ -7,18 +7,21 @@ Maria Liubarska, J.P. Yanez 2023
 
 import numpy as np
 from daemonflux import Flux
+from daemonflux import __version__ as daemon_version
 
 from pisa import FTYPE, TARGET
 from pisa.core.stage import Stage
+from pisa.core.param import Param
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from numba import jit
 from scipy import interpolate
+from packaging.version import Version
 
 
 class daemon_flux(Stage):
     """
-    DEAMON fulx stage
+    DAEMON flux stage
     
     Parameters
     ----------
@@ -26,53 +29,53 @@ class daemon_flux(Stage):
     params: ParamSet
         Must have parameters: .. ::
 
-            K_158G : quantity (dimensionless)
+            daemon_K_158G : quantity (dimensionless)
 
-            K_2P : quantity (dimensionless)
+            daemon_K_2P : quantity (dimensionless)
 
-            K_31G : quantity (dimensionless)
+            daemon_K_31G : quantity (dimensionless)
 
-            antiK_158G : quantity (dimensionless)
+            daemon_antiK_158G : quantity (dimensionless)
 
-            antiK_2P : quantity (dimensionless)
+            daemon_antiK_2P : quantity (dimensionless)
 
-            antiK_31G : quantity (dimensionless)
+            daemon_antiK_31G : quantity (dimensionless)
 
-            n_158G : quantity (dimensionless)
+            daemon_n_158G : quantity (dimensionless)
 
-            n_2P : quantity (dimensionless)
+            daemon_n_2P : quantity (dimensionless)
 
-            p_158G : quantity (dimensionless)
+            daemon_p_158G : quantity (dimensionless)
 
-            p_2P : quantity (dimensionless)
+            daemon_p_2P : quantity (dimensionless)
 
-            pi_158G : quantity (dimensionless)
+            daemon_pi_158G : quantity (dimensionless)
 
-            pi_20T : quantity (dimensionless)
+            daemon_pi_20T : quantity (dimensionless)
 
-            pi_2P : quantity (dimensionless)
+            daemon_pi_2P : quantity (dimensionless)
 
-            pi_31G : quantity (dimensionless)
+            daemon_pi_31G : quantity (dimensionless)
 
-            antipi_158G : quantity (dimensionless)
+            daemon_antipi_158G : quantity (dimensionless)
 
-            antipi_20T : quantity (dimensionless)
+            daemon_antipi_20T : quantity (dimensionless)
 
-            antipi_2P : quantity (dimensionless)
+            daemon_antipi_2P : quantity (dimensionless)
 
-            antipi_31G : quantity (dimensionless)
+            daemon_antipi_31G : quantity (dimensionless)
 
-            GSF_1 : quantity (dimensionless)
+            daemon_GSF_1 : quantity (dimensionless)
 
-            GSF_2 : quantity (dimensionless)
+            daemon_GSF_2 : quantity (dimensionless)
 
-            GSF_3 : quantity (dimensionless)
+            daemon_GSF_3 : quantity (dimensionless)
 
-            GSF_4 : quantity (dimensionless)
+            daemon_GSF_4 : quantity (dimensionless)
 
-            GSF_5 : quantity (dimensionless)
+            daemon_GSF_5 : quantity (dimensionless)
 
-            GSF_6 : quantity (dimensionless)
+            daemon_GSF_6 : quantity (dimensionless)
 
     """
 
@@ -81,69 +84,42 @@ class daemon_flux(Stage):
         **std_kwargs,
     ):
 
-        self.deamon_params = ['K_158G',
-                              'K_2P',
-                              'K_31G',
-                              'antiK_158G',
-                              'antiK_2P',
-                              'antiK_31G',
-                              'n_158G',
-                              'n_2P',
-                              'p_158G',
-                              'p_2P',
-                              'pi_158G',
-                              'pi_20T',
-                              'pi_2P',
-                              'pi_31G',
-                              'antipi_158G',
-                              'antipi_20T',
-                              'antipi_2P',
-                              'antipi_31G',
-                              'GSF_1',
-                              'GSF_2',
-                              'GSF_3',
-                              'GSF_4',
-                              'GSF_5',
-                              'GSF_6',
-                             ]
+        # first have to check daemonflux package version is >=0.8.0
+        # (have to do this to ensure chi2 prior penalty is calculated correctly)
+        if Version(daemon_version) < Version("0.8.0"):
+            logging.fatal("Detected daemonflux version below 0.8.0! This will lead to incorrect penalty calculation. You must update your daemonflux package to use this stage. You can do it by running 'pip install daemonflux --upgrade'")
+            raise Exception('detected daemonflux version < 0.8.0')
 
-        self.deamon_names =  ['K+_158G',
-                              'K+_2P',
-                              'K+_31G',
-                              'K-_158G',
-                              'K-_2P',
-                              'K-_31G',
-                              'n_158G',
-                              'n_2P',
-                              'p_158G',
-                              'p_2P',
-                              'pi+_158G',
-                              'pi+_20T',
-                              'pi+_2P',
-                              'pi+_31G',
-                              'pi-_158G',
-                              'pi-_20T',
-                              'pi-_2P',
-                              'pi-_31G',
-                              'GSF_1',
-                              'GSF_2',
-                              'GSF_3',
-                              'GSF_4',
-                              'GSF_5',
-                              'GSF_6',
-                             ]
+        # create daemonflux Flux object
+        self.flux_obj = Flux(location='IceCube', use_calibration=True)
+
+        # get parameter names from daemonflux
+        self.daemon_names = self.flux_obj.params.known_parameters
+
+        # make parameter names pisa config compatible and add prefix
+        self.daemon_params = ['daemon_'+p.replace('pi+','pi').replace('pi-','antipi').replace('K+','K').replace('K-','antiK') 
+                              for p in self.daemon_names]
+
+        # add daemon_chi2 internal parameter to carry on chi2 penalty from daemonflux (using covar. matrix)
+        daemon_chi2 = Param(name='daemon_chi2', nominal_value=0., 
+                            value=0., prior=None, range=None, is_fixed=True)
+
+        # saving number of parameters into a internal param in order to check that we don't have 
+        # non-daemonflux params with 'daemon_' in their name, which will make prior penalty calculation incorrect
+        daemon_params_len = Param(name='daemon_params_len', nominal_value=len(self.daemon_names)+2,
+                                  value=len(self.daemon_names)+2, prior=None, range=None, is_fixed=True)
+
+        std_kwargs['params'].update([daemon_chi2,daemon_params_len])
 
         # init base class
         super(daemon_flux, self).__init__(
-            expected_params=tuple(self.deamon_params),
+            expected_params=tuple(self.daemon_params+['daemon_chi2','daemon_params_len']),
             **std_kwargs,
         )
 
     def setup_function(self):
 
         self.data.representation = self.calc_mode
-
-        self.flux_obj = Flux(location='IceCube')
 
         for container in self.data:
             container['nu_flux'] = np.empty((container.size, 2), dtype=FTYPE)
@@ -155,9 +131,13 @@ class daemon_flux(Stage):
 
         # get modified parameters (in units of sigma)
         modif_param_dict = {}
-        for i,k in enumerate(self.deamon_params):
-            modif_param_dict[self.deamon_names[i]] = getattr(self.params, k).value.m_as("dimensionless")
+        for i,k in enumerate(self.daemon_params):
+            modif_param_dict[self.daemon_names[i]] = getattr(self.params, k).value.m_as("dimensionless")
 
+        # update chi2 parameter
+        self.params['daemon_chi2'].value = self.flux_obj.chi2(modif_param_dict)
+
+        # compute flux maps
         flux_map_numu    = make_2d_flux_map(self.flux_obj,
                                             particle = 'numu',
                                             params = modif_param_dict)
