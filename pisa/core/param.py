@@ -1392,8 +1392,11 @@ class ParamSet(MutableSequence, Set):
             # normal (non-correlated) penalty for non-daemonflux params
             priors_sum = np.sum([obj.prior_penalty(metric=metric)
                                  for obj in self._params if "daemon_" not in obj.name])
+
+            # conversion factor between chi2 and llh
+            conv_factor = -0.5 if metric in LLH_METRICS else 1
             # add daemonflux calcualted chi2 penalty
-            priors_sum += self._by_name["daemon_chi2"].value.m_as("dimensionless")
+            priors_sum += conv_factor * self._by_name["daemon_chi2"].value.m_as("dimensionless")
 
         return priors_sum
 
