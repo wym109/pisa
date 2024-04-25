@@ -14,7 +14,7 @@
       ```bash
       conda install pip
       ```
-   3. Git
+   3. git
       ```bash
       sudo apt install git
       ```
@@ -61,13 +61,13 @@
    - ndindex >= 1.4
    - msgpack
    - six >= 1.5
-2. Create conda environment/ virtual environment for the installation of PISA. Assume that the name of the environment is `pisa_env` you can choose your preferred version of python >= 3.7
+2. Create conda environment/ virtual environment for the installation of PISA. Assume that the name of the environment is `pisa_env` you can choose your preferred version of python >= 3.10
 
 ```bash
-conda create -n pisa_env python=3.X
+conda create -n pisa_env python=3.10
 ```
 
-2. Activate the newly created environment (You can see the name of your environment in the bash shell after the activation)
+3. Activate the newly created environment (You can see the name of your environment in the bash shell after the activation)
 
 ```bash
 conda activate pisa_env
@@ -128,7 +128,7 @@ Arguments:
   ```python
   outputs = template_maker.data.get_mapset('prob_mu')
   ```
-- Plot the oscillgram
+- Plot the oscillogram
 
   ```python
   fig, axes = plt.subplots(figsize=(18, 5), ncols=3)
