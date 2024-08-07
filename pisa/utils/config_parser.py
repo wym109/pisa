@@ -1399,6 +1399,22 @@ def test_parse_pipeline_config(config='settings/pipeline/example.cfg'):
         logging.info('%s: %s', key, vals)
         assert vals == config0[key]
 
+    # set some option after parsing and compare
+    config2 = PISAConfigParser()
+    config2.read(config)
+    suffix = '_edit'
+    config2.set(
+        section='pipeline',
+        option='name',
+        value=config1['pipeline']['name'] + suffix
+    )
+    config2 = parse_pipeline_config(config2)
+    for key, vals in config2.items():
+        if vals != config1[key]:
+            assert key == 'pipeline'
+            assert vals['name'] == config1['pipeline']['name'] + suffix
+
+
 def test_MutableMultiFileIterator():
     """Unit test for class `MutableMultiFileIterator`"""
     import shutil
@@ -1463,7 +1479,7 @@ def parse_args():
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        'pipeline', metavar='CONFIGFILE',
+        'config', metavar='CONFIGFILE',
         nargs='?',
         default='settings/pipeline/example.cfg',
         help='Pipeline config file to parse',
