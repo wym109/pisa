@@ -1,14 +1,14 @@
 """
-Parse a ConfigFile object into a dict containing an item for every analysis
+Parse a config file into a dict containing an item for every analysis
 stage, that itself contains all necessary instantiation arguments/objects for
-that stage. for en example config file, please consider
+that stage. For an example config file, please consider
 :file:`$PISA/pisa_examples/resources/settings/pipeline/example.cfg`
 
 Config File Structure
 =====================
 
 A pipeline config file is expected to contain something like the following,
-with the sections ``[pipeline]`` and corresponding ``[stage:service]``
+with the sections ``[pipeline]`` and corresponding ``[stage.service]``
 required, in addition to a ``[binning]`` section:
 
 .. code-block:: cfg
@@ -20,8 +20,8 @@ required, in addition to a ``[binning]`` section:
 
     order = stageA.serviceA, stageB.serviceB
 
-    output_binning = bining1
-    output_key = ('weights', 'errors')
+    output_binning = binning1
+    output_key = weights, errors
 
 
     [binning]
@@ -39,8 +39,8 @@ required, in addition to a ``[binning]`` section:
 
     [stageA.serviceA]
 
-    input_binning = bining1
-    output_binning = binning1
+    calc_mode = binning1
+    apply_mode = binning1
     error_method = None
     debug_mode = False
 
@@ -59,8 +59,8 @@ required, in addition to a ``[binning]`` section:
 
     [stageB.serviceB]
 
-    input_binning = bining1
-    output_binning = binning1
+    calc_mode = binning1
+    apply_mode = binning1
     error_method = None
     debug_mode = False
 
@@ -73,23 +73,28 @@ required, in addition to a ``[binning]`` section:
   #include statement must be the first non-whitespace on a line, and these
   statements can be used anywhere within a config file.
 * ``#include resource as xyz`` statements behave similarly, but prepend the
-  included file's text with a setion header containing ``xyz`` in this case.
-* ``pipeline`` is the top-most section that defines the hierarchy of stages and
-  what services to be instantiated.
+  included file's text with a section header containing ``xyz`` in this case.
+* ``pipeline`` is the top-most section that defines the hierarchy of stages
+  and services to be instantiated. An ``output_binning`` is required to be able
+  to get a :class:`pisa.core.map.MapSet` (set of histograms) output for
+  the pipeline; ``output_key`` then specifies the keys of the data passed
+  through the pipeline which contain histogram weights and (if desired) errors
+  (note: the presence of these keys is in general not obvious from a given
+  pipeline config file itself)
 * ``binning`` can contain different binning definitions, that are then later
   referred to from within the ``stage.service`` sections.
-* ``stage.service`` one such section per stage.service is necessary. It
-  contains some options that are common for all stages (`binning`,
-  `error_method` and `debug_mode`) as well as all the necessary arguments and
-  parameters for a given stage.
+* ``stage.service``: one such section per stage.service is necessary. It may
+  contain the options ``debug_mode``, ``error_method`, ``calc_mode``,
+  ``apply_mode``, which are common to all stages, and must contain all the
+  necessary arguments and parameters for a given stage.service.
 * Duplicate section headers and duplicate keys within a section are illegal.
 
 
 Param definitions
 -----------------
 
-Every key in a stage section that starts with `param.<name>` is interpreted and
-parsed into a PISA :class:`pisa.core.param.Param` object. These can be strings
+Every key in a stage section that starts with ``param.<name>`` is interpreted and
+parsed into a :class:`pisa.core.param.Param` object. These can be strings
 (e.g. a filename--but don't use any quotation marks) or quantities (numbers
 with units).
 
@@ -112,8 +117,8 @@ the number that follows ``+/-`` is the standard deviation. E.g.:
 If no units are explicitly set for a quantity, it is taken to be a quantity
 with special units ``dimensionless``. Units can be set by multiplying (using
 ``*``) by ``units.<unit>`` where ``<unit>`` is the short or long name
-(optionally including metric prefix) of a unit. E.g. the following set
-equivalent values for params `p1` and `p2`:
+(optionally including metric prefix) of a unit. For example, the following
+lines set equivalent values for params ``p1`` and ``p2``:
 
 .. code-block:: cfg
 
@@ -130,7 +135,8 @@ Additional arguments to a parameter are passed in with the ``.`` notation, for
 example ``param.p1.fixed = False``, which makes p1 a free parameter in the
 fit (by default a parameter is fixed unless specified like this).
 
-Uniform and spline priors can also be set using the ``.prior`` attribute:
+A uniform, spline, or Jeffreys :class:`pisa.core.prior.Prior` can also be set
+using the ``.prior`` attribute:
 
 .. code-block:: cfg
 
@@ -141,18 +147,18 @@ Uniform and spline priors can also be set using the ``.prior`` attribute:
     param.p2.prior = spline
     param.p2.prior.data = resource_loc
 
+    param.p3 = 12.5
+    param.p3.prior = jeffreys
+
+In the second case, a ``.prior.data`` option will be expected, pointing to the
+spline data file.
 If no prior is specified, it is taken to have no prior (or, equivalently, a
-uniform prior with no penalty). A uniform prior can be explicitly set or
-arbitrary (Priors (including a Gaussian prior, as an alternative to the above
-notation) can be explicitly set using the ``.prior`` attribute of a ``param``:
+uniform prior with no penalty).
 
-A range must be given for a free parameter. Either as absolute range `[x,y]` or
-in conjunction with the keywords `nominal` (= nominal parameter value) and
-`sigma` if the param was specified with the `+/-` notation.
+A range must be given for a free parameter. Either as absolute range ``[x,y]``
+or in conjunction with the keywords ``nominal`` (= nominal parameter value) and
+``sigma`` if the param was specified with the ``+/-`` notation.
 
-`.prior` is another argument, that can take the values `uniform` or `spline`,
-for the latter case a `.prior.data` will be expected, pointing to the spline
-data file.
 
 N.B.
 ++++
@@ -162,40 +168,48 @@ all of them.
 
 Note that this mechanism of synchronizing parameters holds only within the
 scope of a single pipeline; synchronization of parameters across pipelines is
-done by adding the pipelines to a single DistributionMaker object and updating
-params through the DistributionMaker's update_params method.
+done by adding the pipelines to a single
+:class:`pisa.core.distribution_maker.DistributionMaker` object and updating
+params through the DistributionMaker's
+:func:`pisa.core.distribution_maker.DistributionMaker.update_params` method.
 
-If you DO NOT want parameters to be synchronized, provide a unique_id for them.
-This is imply done by setting `.unique_id`
+If you DO NOT want parameters to be synchronized, provide a ``unique_id`` for them.
+This is simply done by setting ``.unique_id``
 
 
 Param selector
 --------------
 
-A special mechanism allows the user to specify multiple, different values for
-the same param via the param selector method. This can be used for example for
-hypothesis testing, there for hypothesis A a param takes a certain value, while
-for hypothesis B a different value.
+A special mechanism allows the user to specify different values for
+the same param via the :class:`pisa.core.param.ParamSelector` mechanism.
+This can be used for example for hypothesis testing, where for hypothesis A a
+param takes one value and for hypothesis B another.
 
-A given param, say `foo`, then needs two definitions like the following,
-assuming we name our selections `A` and `B`:
+A given param, say ``foo``, then needs two definitions like the following,
+assuming we name our selections ``A`` and ``B``:
 
 .. code-block:: cfg
 
     param.A.foo = 1
     param.B.foo = 2
 
-The default param selector needs to be spcified under section `pipeline` as e.g.
+The default param selector needs to be specified in the ``pipeline`` section as
+e.g.
 
 .. code-block:: cfg
 
     param_selections = A
 
-Which will default the value of 1 for param `foo`. An instatiated pipeline can
-dynamically switch to another selection after instantiation.
+, which will default to the value of 1 for param ``foo``. An instantiated
+pipeline can dynamically switch to another selection after instantiation.
 
-Multiple different param selectors are allowed in a single config. In the
+Multiple different param selections are allowed in a single config. In the
 default selection they must be separated by commas.
+
+N.B.
++++
+Currently, for better or worse, the param selector mechanism requires at least
+one stage which contains all of the specified selections.
 
 """
 
@@ -222,8 +236,7 @@ default selection they must be separated by commas.
 from __future__ import absolute_import, division
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from collections.abc import Mapping
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from io import StringIO
 from os.path import abspath, expanduser, expandvars, isfile, join
 import re
@@ -431,14 +444,14 @@ def interpret_param_subfields(subfields, selector=None, pname=None, attr=None):
 def parse_param(config, section, selector, fullname, pname, value):
     """Parse a param specification from a PISA config file.
 
-    Note that if the param sepcification does not include ``fixed``,
+    Note that if the param specification does not include ``fixed``,
     ``prior``, and/or ``range``, the defaults for these are:
     ``fixed = True``, ``prior = None``, and ``range = None``.
 
     If a prior is specified explicitly via ``.prior``, this takes precendence,
     but if no ``.prior`` is specified and the param's value is parsed to be a
-    :class:`uncertainties.AffineScalarFunc` (i.e. have `std_dev` attribute), a
-    Gaussian prior is constructed from that and then the AffineScalarFunc is
+    :class:`uncertainties.AffineScalarFunc` (i.e. have ``std_dev`` attribute),
+    a Gaussian prior is constructed from that and then the AffineScalarFunc is
     stripped out of the param's value (such that it is just a
     :class:`~pint.quantity.Quantity`).
 
@@ -493,16 +506,17 @@ def parse_param(config, section, selector, fullname, pname, value):
         # prior from here on out)
         kwargs['range'] = eval(range_).to(value.units) # pylint: disable=eval-used
 
-    if config.has_option(section, fullname+".function_file"):
-        kwargs["function_file"] = config.get(section, fullname+".function_file")
+    if config.has_option(section, fullname + '.function_file'):
+        kwargs["function_file"] = config.get(section, fullname + '.function_file')
 
-    if config.has_option(section, fullname+".depends_names"):
-        # this means this is a derived parameter, so we throw away the default `fixed` and `prior` kwargs
+    if config.has_option(section, fullname + '.depends_names'):
+        # This means this is a derived parameter, so we throw away the default
+        # `fixed` and `prior` kwargs
         del kwargs['is_fixed']
         del kwargs['prior']
 
-        depends = config.get(section, fullname+".depends_names")
-        kwargs["depends_names"] = depends.split(" ")
+        depends = config.get(section, fullname + '.depends_names')
+        kwargs['depends_names'] = depends.split(' ')
 
     if config.has_option(section, fullname + '.prior'):
         prior = str(config.get(section, fullname + '.prior')).strip().lower()
@@ -562,13 +576,13 @@ def parse_pipeline_config(config):
 
     Parameters
     ----------
-    config : string or ConfigParser
+    config : string or pisa.utils.config_parser.PISAConfigParser
 
     Returns
     -------
     stage_dicts : OrderedDict
         Keys are (stage_name, service_name) tuples and values are OrderedDicts
-        with keys the argnames and values the arguments' values. Some known arg
+        with arguments' names as keys and values as values. Some known arg
         values are parsed out fully into Python objects, while the rest remain
         as strings that must be used or parsed elsewhere.
 
@@ -598,7 +612,8 @@ def parse_pipeline_config(config):
     # Loop over binning lines
     for name, value in config['binning'].items():
         if name.endswith('.order'):
-            # Found the first line in a new binning, get the individual bin dimension definitions...
+            # Found the first line in a new binning, get the individual bin
+            # dimension definitions...
             order = split(config.get('binning', name))
             binning, _ = split(name, sep='.')
             bins = []
@@ -662,14 +677,19 @@ def parse_pipeline_config(config):
         stage_dicts[section]['name'] = "none"
 
     if config.has_option(section, 'output_binning'):
-        stage_dicts[section]['output_binning'] = binning_dict[config.get(section, 'output_binning')]
+        stage_dicts[section]['output_binning'] = binning_dict[
+            config.get(section, 'output_binning')
+        ]
         output_key = split(config.get(section, 'output_key'))
         if len(output_key) == 1:
             stage_dicts[section]['output_key'] = output_key[0]
         elif len(output_key) == 2:
             stage_dicts[section]['output_key'] = tuple(output_key)
         else:
-            raise ValueError(f'Output key should be exactly one key, or a tuple (key, error_key), but is {output_key}')
+            raise ValueError(
+                f'''Output key should be exactly one key, or a tuple
+                (key, error_key), but is {output_key}'''
+            )
     else:
         stage_dicts[section]['output_binning'] = None
         stage_dicts[section]['output_format'] = None
@@ -680,7 +700,9 @@ def parse_pipeline_config(config):
         param_selections = split(config.get(section, 'param_selections'))
 
     if config.has_option(section, 'detector_name'):
-        stage_dicts[section]['detector_name'] = config.get(section, 'detector_name')
+        stage_dicts[section]['detector_name'] = config.get(
+            section, 'detector_name'
+        )
     else:
         stage_dicts[section]['detector_name'] = None
 
@@ -781,7 +803,8 @@ def parse_pipeline_config(config):
 
                 param_selector.update(param, selector=infodict['selector'])
 
-            # If it is a binning defined in the "binning" section, use the parsed value
+            # If it is a binning defined in the "binning" section, use the
+            # parsed value
             elif value in binning_dict.keys():
                 service_kwargs[fullname] = binning_dict[value]
 
@@ -826,13 +849,17 @@ def parse_pipeline_config(config):
         if n_params == 0:
             service_kwargs.pop('params')
 
-        # finish setting up the derived parameters 
+        # finish setting up the derived parameters
         if n_derived_params != 0:
             for param in param_selector:
                 if isinstance(param, DerivedParam):
-                    # give the derived parameter references to the parameters it depends on 
-                    param.dependson = [param_selector.get(name) for name in param.depends_names]
-                    
+                    # Give the derived parameter references to the parameters
+                    # it depends on
+                    param.dependson = [
+                        param_selector.get(name)
+                        for name in param.depends_names
+                    ]
+
 
         # Store the service's kwargs to the stage_dicts
         stage_dicts[(stage, service)] = service_kwargs
@@ -1053,7 +1080,7 @@ class PISAConfigParser(RawConfigParser):  # pylint: disable=too-many-ancestors
 
     where the files or resources located at "/path/to/file.cfg",
     "path/to/resource.cfg", and "path/to/resource2.cfg" are effectively inlined
-    wherever the #include statements occur.
+    wherever the ``#include`` statements occur.
 
     The ``#include path/to/resource2.cfg as section_name`` syntax
     prefixes the contents of ``resource2.cfg`` by a section header named
@@ -1068,10 +1095,10 @@ class PISAConfigParser(RawConfigParser):  # pylint: disable=too-many-ancestors
 
     Special parsing rules we have added to make ``#include`` behavior sensible:
 
-    1. Using an ``#include file`` that contains a sction header
+    1. Using an ``#include file`` that contains a section header
        (``[section_name]``) *or* using ``#include file as section_name``
-       requires that the next non-blank / non-comment / non-#include line be a
-       new section header (``[section_name2]``).
+       requires that the next non-blank / non-comment / non-``#include`` line
+       be a new section header (``[section_name2]``).
     2. Empty sections after fully parsing a config will raise a ``ValueError``.
        This is likely never a desired behavior, and should alert the user to
        inadvertent use of ``#include``.
@@ -1109,15 +1136,14 @@ class PISAConfigParser(RawConfigParser):  # pylint: disable=too-many-ancestors
     def set(self, section, option, value=None):
         """Set an option.  Extends RawConfigParser.set by validating type and
         interpolation syntax on the value."""
-        _, option, value = self._validate_value_types(option=option,
-                                                      value=value)
+        self._validate_value_types(option=option, value=value)
         super().set(section, option, value)
 
     def add_section(self, section):
         """Create a new section in the configuration.  Extends
         RawConfigParser.add_section by validating if the section name is
         a string."""
-        section, _, _ = self._validate_value_types(section=section)
+        self._validate_value_types(section=section)
         super().add_section(section)
 
     def optionxform(self, optionstr):
@@ -1373,6 +1399,22 @@ def test_parse_pipeline_config(config='settings/pipeline/example.cfg'):
         logging.info('%s: %s', key, vals)
         assert vals == config0[key]
 
+    # set some option after parsing and compare
+    config2 = PISAConfigParser()
+    config2.read(config)
+    suffix = '_edit'
+    config2.set(
+        section='pipeline',
+        option='name',
+        value=config1['pipeline']['name'] + suffix
+    )
+    config2 = parse_pipeline_config(config2)
+    for key, vals in config2.items():
+        if vals != config1[key]:
+            assert key == 'pipeline'
+            assert vals['name'] == config1['pipeline']['name'] + suffix
+
+
 def test_MutableMultiFileIterator():
     """Unit test for class `MutableMultiFileIterator`"""
     import shutil
@@ -1437,7 +1479,7 @@ def parse_args():
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        'pipeline', metavar='CONFIGFILE',
+        'config', metavar='CONFIGFILE',
         nargs='?',
         default='settings/pipeline/example.cfg',
         help='Pipeline config file to parse',
