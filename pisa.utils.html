@@ -7,7 +7,7 @@
         <link rel="prefetch" href="_static/pisa4_logo_transparent.png" as="image">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>pisa.utils package - PISA 0+untagged.1.gdb24838 documentation</title>
+        <title>pisa.utils package - PISA 0+untagged.1.g1eb8892 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
@@ -164,7 +164,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">PISA 0+untagged.1.gdb24838 documentation</div></a>
+      <a href="index.html"><div class="brand">PISA 0+untagged.1.g1eb8892 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -188,7 +188,7 @@
     <img class="sidebar-logo" src="_static/pisa4_logo_transparent.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">PISA 0+untagged.1.gdb24838 documentation</span>
+  <span class="sidebar-brand-text">PISA 0+untagged.1.g1eb8892 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -202,6 +202,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="tutorials.html">Tutorials</a><input aria-label="Toggle navigation of Tutorials" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="stubs/glossary_stub.html">PISA Terminology</a></li>
 <li class="toctree-l2"><a class="reference internal" href="notebooks/IceCube_3y_oscillations_example.html">PISA Example Using Public IceCube Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stubs/howto_perform_fit_redirect.html">Carrying out a custom fitting routine</a></li>
 <li class="toctree-l2"><a class="reference internal" href="notebooks/pisa_modes.html">PISA stage modes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stubs/howto_pipeline_config_redirect.html">Pipeline configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stubs/units_uncertainties_stub.html">Units and Uncertainties</a></li>
@@ -2100,6 +2101,12 @@ Levels of hierarchy are separated by forward-slashes (‘/’).</p>
 <section id="module-pisa.utils.fileio">
 <span id="pisa-utils-fileio-module"></span><h2>pisa.utils.fileio module<a class="headerlink" href="#module-pisa.utils.fileio" title="Link to this heading">¶</a></h2>
 <p>Generic file I/O, dispatching specific file readers/writers as necessary</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="pisa.utils.fileio.EVAL_MSG">
+<span class="sig-prename descclassname"><span class="pre">pisa.utils.fileio.</span></span><span class="sig-name descname"><span class="pre">EVAL_MSG</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Using</span> <span class="pre">eval()</span> <span class="pre">is</span> <span class="pre">potentially</span> <span class="pre">dangerous</span> <span class="pre">as</span> <span class="pre">it</span> <span class="pre">can</span> <span class="pre">execute</span> <span class="pre">arbitrary</span> <span class="pre">code!</span> <span class="pre">Do</span> <span class="pre">not</span> <span class="pre">store</span> <span class="pre">your</span> <span class="pre">config</span> <span class="pre">file</span> <span class="pre">in</span> <span class="pre">a</span> <span class="pre">place</span> <span class="pre">where</span> <span class="pre">others</span> <span class="pre">have</span> <span class="pre">writing</span> <span class="pre">access!'</span></span><a class="headerlink" href="#pisa.utils.fileio.EVAL_MSG" title="Link to this definition">¶</a></dt>
+<dd><p>Generic warning about evaluating expressions.</p>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="pisa.utils.fileio.expand">
 <span class="sig-prename descclassname"><span class="pre">pisa.utils.fileio.</span></span><span class="sig-name descname"><span class="pre">expand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exp_user</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exp_vars</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">absolute</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolve_symlinks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/utils/fileio.html#expand"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.utils.fileio.expand" title="Link to this definition">¶</a></dt>
@@ -6760,6 +6767,7 @@ modifications that have been proposed in the literature.</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-pisa.utils.fileio">pisa.utils.fileio module</a><ul>
+<li><a class="reference internal" href="#pisa.utils.fileio.EVAL_MSG"><code class="docutils literal notranslate"><span class="pre">EVAL_MSG</span></code></a></li>
 <li><a class="reference internal" href="#pisa.utils.fileio.expand"><code class="docutils literal notranslate"><span class="pre">expand()</span></code></a></li>
 <li><a class="reference internal" href="#pisa.utils.fileio.find_files"><code class="docutils literal notranslate"><span class="pre">find_files()</span></code></a></li>
 <li><a class="reference internal" href="#pisa.utils.fileio.from_cfg"><code class="docutils literal notranslate"><span class="pre">from_cfg()</span></code></a></li>
@@ -7220,7 +7228,7 @@ modifications that have been proposed in the literature.</p>
       
     </aside>
   </div>
-</div><script src="_static/documentation_options.js?v=a19192f0"></script>
+</div><script src="_static/documentation_options.js?v=856fc904"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/scripts/furo.js?v=46bd48cc"></script>

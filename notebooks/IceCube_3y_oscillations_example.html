@@ -3,11 +3,11 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="PISA stage modes" href="pisa_modes.html"><link rel="prev" title="PISA Terminology" href="../stubs/glossary_stub.html">
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Carrying out a custom fitting routine" href="../stubs/howto_perform_fit_redirect.html"><link rel="prev" title="PISA Terminology" href="../stubs/glossary_stub.html">
         <link rel="prefetch" href="../_static/pisa4_logo_transparent.png" as="image">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>PISA Example Using Public IceCube Data - PISA 0+untagged.1.gdb24838 documentation</title>
+        <title>PISA Example Using Public IceCube Data - PISA 0+untagged.1.g1eb8892 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
@@ -164,7 +164,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="../index.html"><div class="brand">PISA 0+untagged.1.gdb24838 documentation</div></a>
+      <a href="../index.html"><div class="brand">PISA 0+untagged.1.g1eb8892 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -188,7 +188,7 @@
     <img class="sidebar-logo" src="../_static/pisa4_logo_transparent.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">PISA 0+untagged.1.gdb24838 documentation</span>
+  <span class="sidebar-brand-text">PISA 0+untagged.1.g1eb8892 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -202,6 +202,7 @@
 <li class="toctree-l1 current has-children"><a class="reference internal" href="../tutorials.html">Tutorials</a><input aria-label="Toggle navigation of Tutorials" checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="../stubs/glossary_stub.html">PISA Terminology</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">PISA Example Using Public IceCube Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../stubs/howto_perform_fit_redirect.html">Carrying out a custom fitting routine</a></li>
 <li class="toctree-l2"><a class="reference internal" href="pisa_modes.html">PISA stage modes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../stubs/howto_pipeline_config_redirect.html">Pipeline configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../stubs/units_uncertainties_stub.html">Units and Uncertainties</a></li>
@@ -302,18 +303,22 @@
 <p>Dataset must be obtained from <a class="reference external" href="https://icecube.wisc.edu/science/data/highstats_nuosc_3y" rel="noreferer noopener" target="_blank">https://icecube.wisc.edu/science/data/highstats_nuosc_3y</a></p>
 <section id="setup">
 <h2>Setup<a class="headerlink" href="#setup" title="Link to this heading">¶</a></h2>
-<p>Usually you would need to export the location of the data, and the config files to <code class="docutils literal notranslate"><span class="pre">PISA_RESOURCES</span></code>. For this example however, the data is inside our package.</p>
+<p>Usually you would need to export the location of the data and the config files to <code class="docutils literal notranslate"><span class="pre">PISA_RESOURCES</span></code>. For this example however, the data is inside our package.</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">uncertainties</span><span class="w"> </span><span class="kn">import</span> <span class="n">unumpy</span> <span class="k">as</span> <span class="n">unp</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pisa</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pisa</span><span class="w"> </span><span class="kn">import</span> <span class="n">ureg</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pisa.analysis.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">Analysis</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pisa.core.distribution_maker</span><span class="w"> </span><span class="kn">import</span> <span class="n">DistributionMaker</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pisa.core.pipeline</span><span class="w"> </span><span class="kn">import</span> <span class="n">Pipeline</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pisa.analysis.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">Analysis</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pisa</span><span class="w"> </span><span class="kn">import</span> <span class="n">FTYPE</span><span class="p">,</span> <span class="n">ureg</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stderr highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>&lt;&lt; PISA is running in double precision (FP64) mode; numba is running on CPU (single core) &gt;&gt;
 </pre></div>
 </div>
 </div>
@@ -321,12 +326,13 @@
 </section>
 <section id="model">
 <h2>Model<a class="headerlink" href="#model" title="Link to this heading">¶</a></h2>
-<p>We can now instantiate the <code class="docutils literal notranslate"><span class="pre">model</span></code> (given our configs) that we later fit to data. This now containes two <code class="docutils literal notranslate"><span class="pre">Pipelines</span></code> in a <code class="docutils literal notranslate"><span class="pre">DistributionMaker</span></code>, one for our neutrinos, and one for the background muons.</p>
+<p>We can now instantiate the <code class="docutils literal notranslate"><span class="pre">model</span></code> (given our configs) that we later fit to data. This contains two <a class="reference external" href="https://icecube.github.io/pisa/pisa.core.html#module-pisa.core.pipeline" rel="noreferer noopener" target="_blank"><code class="docutils literal notranslate"><span class="pre">Pipeline</span></code></a>s in a <a class="reference external" href="https://icecube.github.io/pisa/pisa.core.html#module-pisa.core.distribution_maker" rel="noreferer noopener" target="_blank"><code class="docutils literal notranslate"><span class="pre">DistributionMaker</span></code></a>, one for our neutrinos, and one for the background muons. We turn on profiling so that we will be able to analyse the time it took to generate the model predictions over the course of the analysis.</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">model</span> <span class="o">=</span> <span class="n">DistributionMaker</span><span class="p">([</span><span class="s2">&quot;settings/pipeline/IceCube_3y_neutrinos.cfg&quot;</span><span class="p">,</span> <span class="s2">&quot;settings/pipeline/IceCube_3y_muons.cfg&quot;</span><span class="p">])</span>
-<span class="c1"># this just turns on profiling</span>
-<span class="n">model</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="kc">True</span>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">model</span> <span class="o">=</span> <span class="n">DistributionMaker</span><span class="p">(</span>
+    <span class="n">pipelines</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;settings/pipeline/IceCube_3y_neutrinos.cfg&quot;</span><span class="p">,</span> <span class="s2">&quot;settings/pipeline/IceCube_3y_muons.cfg&quot;</span><span class="p">],</span>
+    <span class="n">profile</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
 <span class="n">model</span>
 </pre></div>
 </div>
@@ -337,10 +343,10 @@
 <tr><th style="text-align: right;">  pipeline number</th><th style="text-align: center;">  name   </th><th style="text-align: center;"> detector name </th><th style="text-align: center;"> output_binning </th><th style="text-align: center;">     output_key      </th><th style="text-align: center;"> profile </th></tr>
 </thead>
 <tbody>
-<tr><td style="text-align: right;">                0</td><td style="text-align: center;">neutrinos</td><td style="text-align: center;">               </td><td style="text-align: center;">        "dragon_datarelease":
-8 (reco_energy) x 8 (reco_coszen) x 2 (pid)         </td><td style="text-align: center;">('weights', 'errors')</td><td style="text-align: center;">  True   </td></tr>
-<tr><td style="text-align: right;">                1</td><td style="text-align: center;">  muons  </td><td style="text-align: center;">               </td><td style="text-align: center;">        "dragon_datarelease":
-8 (reco_energy) x 8 (reco_coszen) x 2 (pid)         </td><td style="text-align: center;">('weights', 'errors')</td><td style="text-align: center;">  True   </td></tr>
+<tr><td style="text-align: right;">                0</td><td style="text-align: center;">neutrinos</td><td style="text-align: center;">               </td><td style="text-align: center;">        &quot;dragon_datarelease&quot;:
+8 (reco_energy) x 8 (reco_coszen) x 2 (pid)         </td><td style="text-align: center;">(&#x27;weights&#x27;, &#x27;errors&#x27;)</td><td style="text-align: center;">  True   </td></tr>
+<tr><td style="text-align: right;">                1</td><td style="text-align: center;">  muons  </td><td style="text-align: center;">               </td><td style="text-align: center;">        &quot;dragon_datarelease&quot;:
+8 (reco_energy) x 8 (reco_coszen) x 2 (pid)         </td><td style="text-align: center;">(&#x27;weights&#x27;, &#x27;errors&#x27;)</td><td style="text-align: center;">  True   </td></tr>
 </tbody>
 </table></div></div>
 </div>
@@ -354,29 +360,29 @@
 <div class="cell_output docutils container">
 <div class="output text_html"><table>
 <thead>
-<tr><th style="text-align: right;">               name</th><th style="text-align: center;"> value  </th><th style="text-align: center;"> nominal_value </th><th style="text-align: center;">    range     </th><th style="text-align: center;">  prior  </th><th style="text-align: center;">      units       </th><th style="text-align: center;"> is_fixed </th></tr>
+<tr><th style="text-align: right;">               name</th><th style="text-align: center;"> value  </th><th style="text-align: center;"> nominal_value </th><th style="text-align: center;">                range                 </th><th style="text-align: center;">  prior  </th><th style="text-align: center;">      units       </th><th style="text-align: center;"> is_fixed </th></tr>
 </thead>
 <tbody>
-<tr><td style="text-align: right;">     nue_numu_ratio</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.5, 1.5]  </td><td style="text-align: center;">+/- 0.05 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">   Barr_uphor_ratio</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-3.0, 3.0]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">Barr_nu_nubar_ratio</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-3.0, 3.0]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">        delta_index</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-0.5, 0.5]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">            theta13</td><td style="text-align: center;">  8.5   </td><td style="text-align: center;">      8.5      </td><td style="text-align: center;"> [7.85, 9.1]  </td><td style="text-align: center;">+/- 0.205</td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">            theta23</td><td style="text-align: center;">  42.3  </td><td style="text-align: center;">     42.3      </td><td style="text-align: center;">   [31, 59]   </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">           deltam31</td><td style="text-align: center;">0.002457</td><td style="text-align: center;">   0.002457    </td><td style="text-align: center;">[0.001, 0.007]</td><td style="text-align: center;"> uniform </td><td style="text-align: center;">electron_volt ** 2</td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">         aeff_scale</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.0, 3.0]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">         nutau_norm</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;"> [-1.0, 8.5]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">         nu_nc_norm</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.5, 1.5]  </td><td style="text-align: center;"> +/- 0.2 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">    opt_eff_overall</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.8, 1.2]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">    opt_eff_lateral</td><td style="text-align: center;">   25   </td><td style="text-align: center;">      25       </td><td style="text-align: center;">   [5, 50]    </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">     opt_eff_headon</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-5.0, 2.0]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">     ice_scattering</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;">  [-15, 15]   </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">     ice_absorption</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;">  [-15, 15]   </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">     atm_muon_scale</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.0, 5.0]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     nue_numu_ratio</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.5), np.float64(1.5)]  </td><td style="text-align: center;">+/- 0.05 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">   Barr_uphor_ratio</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [np.float64(-3.0), np.float64(3.0)]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">Barr_nu_nubar_ratio</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [np.float64(-3.0), np.float64(3.0)]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">        delta_index</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [np.float64(-0.5), np.float64(0.5)]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">            theta13</td><td style="text-align: center;">  8.5   </td><td style="text-align: center;">      8.5      </td><td style="text-align: center;"> [np.float64(7.85), np.float64(9.1)]  </td><td style="text-align: center;">+/- 0.205</td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">            theta23</td><td style="text-align: center;">  42.3  </td><td style="text-align: center;">     42.3      </td><td style="text-align: center;">     [np.int64(31), np.int64(59)]     </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">           deltam31</td><td style="text-align: center;">0.002457</td><td style="text-align: center;">   0.002457    </td><td style="text-align: center;">[np.float64(0.001), np.float64(0.007)]</td><td style="text-align: center;"> uniform </td><td style="text-align: center;">electron_volt ** 2</td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">         aeff_scale</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.0), np.float64(3.0)]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">         nutau_norm</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;"> [np.float64(-1.0), np.float64(8.5)]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">         nu_nc_norm</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.5), np.float64(1.5)]  </td><td style="text-align: center;"> +/- 0.2 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">    opt_eff_overall</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.8), np.float64(1.2)]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">    opt_eff_lateral</td><td style="text-align: center;">   25   </td><td style="text-align: center;">      25       </td><td style="text-align: center;">     [np.int64(5), np.int64(50)]      </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     opt_eff_headon</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [np.float64(-5.0), np.float64(2.0)]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     ice_scattering</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;">    [np.int64(-15), np.int64(15)]     </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     ice_absorption</td><td style="text-align: center;">   0    </td><td style="text-align: center;">       0       </td><td style="text-align: center;">    [np.int64(-15), np.int64(15)]     </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     atm_muon_scale</td><td style="text-align: center;">   1    </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.0), np.float64(5.0)]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
 </tbody>
 </table></div></div>
 </div>
-<p>The two pipelines are quite different, with most complexity in the neutrino pipeline, that has several <code class="docutils literal notranslate"><span class="pre">Stage</span></code>s and free parameters:</p>
+<p>The two pipelines are quite different, with most complexity in the neutrino pipeline, that has several <a class="reference external" href="https://icecube.github.io/pisa/pisa.core.html#module-pisa.core.stage" rel="noreferer noopener" target="_blank"><code class="docutils literal notranslate"><span class="pre">Stage</span></code></a>s and free parameters:</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="o">.</span><span class="n">pipelines</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -390,17 +396,17 @@
 </thead>
 <tbody>
 <tr><td style="text-align: right;">             0</td><td style="text-align: center;"> csv_loader  </td><td style="text-align: center;">  events   </td><td style="text-align: center;">   events   </td><td style="text-align: center;">   True    </td><td style="text-align: center;">    False    </td><td style="text-align: center;">   True    </td><td style="text-align: center;">       0        </td><td style="text-align: center;">       0       </td></tr>
-<tr><td style="text-align: right;">             1</td><td style="text-align: center;">  honda_ip   </td><td style="text-align: center;">      "true_allsky_fine":
+<tr><td style="text-align: right;">             1</td><td style="text-align: center;">  honda_ip   </td><td style="text-align: center;">      &quot;true_allsky_fine&quot;:
 200 (true_energy) x 200 (true_coszen)      </td><td style="text-align: center;">   events   </td><td style="text-align: center;">   True    </td><td style="text-align: center;">    True     </td><td style="text-align: center;">   False   </td><td style="text-align: center;">       1        </td><td style="text-align: center;">       0       </td></tr>
-<tr><td style="text-align: right;">             2</td><td style="text-align: center;"> barr_simple </td><td style="text-align: center;">      "true_allsky_fine":
+<tr><td style="text-align: right;">             2</td><td style="text-align: center;"> barr_simple </td><td style="text-align: center;">      &quot;true_allsky_fine&quot;:
 200 (true_energy) x 200 (true_coszen)      </td><td style="text-align: center;">   events   </td><td style="text-align: center;">   True    </td><td style="text-align: center;">    True     </td><td style="text-align: center;">   False   </td><td style="text-align: center;">       1        </td><td style="text-align: center;">       4       </td></tr>
-<tr><td style="text-align: right;">             3</td><td style="text-align: center;">    prob3    </td><td style="text-align: center;">      "true_allsky_fine":
+<tr><td style="text-align: right;">             3</td><td style="text-align: center;">    prob3    </td><td style="text-align: center;">      &quot;true_allsky_fine&quot;:
 200 (true_energy) x 200 (true_coszen)      </td><td style="text-align: center;">   events   </td><td style="text-align: center;">   True    </td><td style="text-align: center;">    True     </td><td style="text-align: center;">   True    </td><td style="text-align: center;">       9        </td><td style="text-align: center;">       3       </td></tr>
 <tr><td style="text-align: right;">             4</td><td style="text-align: center;">    aeff     </td><td style="text-align: center;">  events   </td><td style="text-align: center;">   events   </td><td style="text-align: center;">   False   </td><td style="text-align: center;">    False    </td><td style="text-align: center;">   True    </td><td style="text-align: center;">       2        </td><td style="text-align: center;">       3       </td></tr>
-<tr><td style="text-align: right;">             5</td><td style="text-align: center;">    hist     </td><td style="text-align: center;">  events   </td><td style="text-align: center;">      "dragon_datarelease":
+<tr><td style="text-align: right;">             5</td><td style="text-align: center;">    hist     </td><td style="text-align: center;">  events   </td><td style="text-align: center;">      &quot;dragon_datarelease&quot;:
 8 (reco_energy) x 8 (reco_coszen) x 2 (pid)       </td><td style="text-align: center;">   True    </td><td style="text-align: center;">    False    </td><td style="text-align: center;">   True    </td><td style="text-align: center;">       0        </td><td style="text-align: center;">       0       </td></tr>
-<tr><td style="text-align: right;">             6</td><td style="text-align: center;">hypersurfaces</td><td style="text-align: center;">      "dragon_datarelease":
-8 (reco_energy) x 8 (reco_coszen) x 2 (pid)      </td><td style="text-align: center;">      "dragon_datarelease":
+<tr><td style="text-align: right;">             6</td><td style="text-align: center;">hypersurfaces</td><td style="text-align: center;">      &quot;dragon_datarelease&quot;:
+8 (reco_energy) x 8 (reco_coszen) x 2 (pid)      </td><td style="text-align: center;">      &quot;dragon_datarelease&quot;:
 8 (reco_energy) x 8 (reco_coszen) x 2 (pid)       </td><td style="text-align: center;">   True    </td><td style="text-align: center;">    True     </td><td style="text-align: center;">   True    </td><td style="text-align: center;">       0        </td><td style="text-align: center;">       5       </td></tr>
 </tbody>
 </table></div></div>
@@ -414,18 +420,18 @@
 <div class="cell_output docutils container">
 <div class="output text_html"><table>
 <thead>
-<tr><th style="text-align: right;">               name</th><th style="text-align: center;"> value </th><th style="text-align: center;"> nominal_value </th><th style="text-align: center;">   range   </th><th style="text-align: center;"> prior  </th><th style="text-align: center;"> units </th><th style="text-align: center;"> is_fixed </th></tr>
+<tr><th style="text-align: right;">               name</th><th style="text-align: center;"> value </th><th style="text-align: center;"> nominal_value </th><th style="text-align: center;">               range               </th><th style="text-align: center;"> prior  </th><th style="text-align: center;"> units </th><th style="text-align: center;"> is_fixed </th></tr>
 </thead>
 <tbody>
-<tr><td style="text-align: right;">     nu_nubar_ratio</td><td style="text-align: center;">   1   </td><td style="text-align: center;">       1       </td><td style="text-align: center;">[0.7, 1.3] </td><td style="text-align: center;">+/- 0.1 </td><td style="text-align: center;">   1   </td><td style="text-align: center;">   True   </td></tr>
-<tr><td style="text-align: right;">     nue_numu_ratio</td><td style="text-align: center;">   1   </td><td style="text-align: center;">       1       </td><td style="text-align: center;">[0.5, 1.5] </td><td style="text-align: center;">+/- 0.05</td><td style="text-align: center;">   1   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">   Barr_uphor_ratio</td><td style="text-align: center;">   0   </td><td style="text-align: center;">       0       </td><td style="text-align: center;">[-3.0, 3.0]</td><td style="text-align: center;">+/- 1.0 </td><td style="text-align: center;">   1   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">Barr_nu_nubar_ratio</td><td style="text-align: center;">   0   </td><td style="text-align: center;">       0       </td><td style="text-align: center;">[-3.0, 3.0]</td><td style="text-align: center;">+/- 1.0 </td><td style="text-align: center;">   1   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">        delta_index</td><td style="text-align: center;">   0   </td><td style="text-align: center;">       0       </td><td style="text-align: center;">[-0.5, 0.5]</td><td style="text-align: center;">+/- 0.1 </td><td style="text-align: center;">   1   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     nu_nubar_ratio</td><td style="text-align: center;">   1   </td><td style="text-align: center;">       1       </td><td style="text-align: center;">[np.float64(0.7), np.float64(1.3)] </td><td style="text-align: center;">+/- 0.1 </td><td style="text-align: center;">   1   </td><td style="text-align: center;">   True   </td></tr>
+<tr><td style="text-align: right;">     nue_numu_ratio</td><td style="text-align: center;">   1   </td><td style="text-align: center;">       1       </td><td style="text-align: center;">[np.float64(0.5), np.float64(1.5)] </td><td style="text-align: center;">+/- 0.05</td><td style="text-align: center;">   1   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">   Barr_uphor_ratio</td><td style="text-align: center;">   0   </td><td style="text-align: center;">       0       </td><td style="text-align: center;">[np.float64(-3.0), np.float64(3.0)]</td><td style="text-align: center;">+/- 1.0 </td><td style="text-align: center;">   1   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">Barr_nu_nubar_ratio</td><td style="text-align: center;">   0   </td><td style="text-align: center;">       0       </td><td style="text-align: center;">[np.float64(-3.0), np.float64(3.0)]</td><td style="text-align: center;">+/- 1.0 </td><td style="text-align: center;">   1   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">        delta_index</td><td style="text-align: center;">   0   </td><td style="text-align: center;">       0       </td><td style="text-align: center;">[np.float64(-0.5), np.float64(0.5)]</td><td style="text-align: center;">+/- 0.1 </td><td style="text-align: center;">   1   </td><td style="text-align: center;">  False   </td></tr>
 </tbody>
 </table></div></div>
 </div>
-<p>While the muon pipleine is rather simple</p>
+<p>In contrast, the muon pipeline is rather simple:</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="o">.</span><span class="n">pipelines</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
@@ -438,8 +444,8 @@
 <tr><th style="text-align: right;">  stage number</th><th style="text-align: center;">    name    </th><th style="text-align: center;"> calc_mode </th><th style="text-align: center;"> apply_mode </th><th style="text-align: center;"> has setup </th><th style="text-align: center;"> has compute </th><th style="text-align: center;"> has apply </th><th style="text-align: center;"> # fixed params </th><th style="text-align: center;"> # free params </th></tr>
 </thead>
 <tbody>
-<tr><td style="text-align: right;">             0</td><td style="text-align: center;">csv_icc_hist</td><td style="text-align: center;">      "dragon_datarelease":
-8 (reco_energy) x 8 (reco_coszen) x 2 (pid)      </td><td style="text-align: center;">      "dragon_datarelease":
+<tr><td style="text-align: right;">             0</td><td style="text-align: center;">csv_icc_hist</td><td style="text-align: center;">      &quot;dragon_datarelease&quot;:
+8 (reco_energy) x 8 (reco_coszen) x 2 (pid)      </td><td style="text-align: center;">      &quot;dragon_datarelease&quot;:
 8 (reco_energy) x 8 (reco_coszen) x 2 (pid)       </td><td style="text-align: center;">   True    </td><td style="text-align: center;">    False    </td><td style="text-align: center;">   True    </td><td style="text-align: center;">       0        </td><td style="text-align: center;">       1       </td></tr>
 </tbody>
 </table></div></div>
@@ -447,7 +453,7 @@
 </section>
 <section id="retrieve-outputs">
 <h2>Retrieve Outputs<a class="headerlink" href="#retrieve-outputs" title="Link to this heading">¶</a></h2>
-<p>We can get individual outputs from just a pipleine like so. This fetches outputs from the neutrino pipleine, which are 12 maps.</p>
+<p>We can get individual <a class="reference external" href="https://icecube.github.io/pisa/pisa.core.html#pisa.core.map.MapSet" rel="noreferer noopener" target="_blank">outputs</a> from a pipeline like so. This fetches outputs from the neutrino pipeline, here 12 maps.</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">maps</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">pipelines</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get_outputs</span><span class="p">()</span>
@@ -490,10 +496,10 @@
 </div>
 </div>
 <div class="cell_output docutils container">
-<img alt="../_images/075d28f7c4db3b3145e4dbf8db5e33d3bcf09d4d37c655e465ba9494e7fcc6a1.png" src="../_images/075d28f7c4db3b3145e4dbf8db5e33d3bcf09d4d37c655e465ba9494e7fcc6a1.png" />
+<img alt="../_images/6f10848b44761cbc23aa254be67e4138fb01ad309d95bb1d8b31a13361673115.png" src="../_images/6f10848b44761cbc23aa254be67e4138fb01ad309d95bb1d8b31a13361673115.png" />
 </div>
 </div>
-<p>If we are interested in just the total expecatation from the full model (all neutrinos + muons), we can do the following:</p>
+<p>If we are interested in just the total expectation from the full model (all neutrinos + muons), we can do the following:</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="o">.</span><span class="n">get_outputs</span><span class="p">(</span><span class="n">return_sum</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
@@ -501,7 +507,7 @@
 </div>
 </div>
 <div class="cell_output docutils container">
-<img alt="../_images/ba5eae419fe59679a178ce9a6451c2df69b8854b914bb028522d9af5549b1740.png" src="../_images/ba5eae419fe59679a178ce9a6451c2df69b8854b914bb028522d9af5549b1740.png" />
+<img alt="../_images/53bf109f77d76f65586aa374ae026455da6aef9fc4032edbe4f72d0c6dbbce72.png" src="../_images/53bf109f77d76f65586aa374ae026455da6aef9fc4032edbe4f72d0c6dbbce72.png" />
 </div>
 </div>
 </section>
@@ -528,14 +534,20 @@
 </div>
 </div>
 <div class="cell_output docutils container">
-<img alt="../_images/7eb40e74db8f0ac634df88e5b4742ecd3e6bfd0836461226fe437c75e82aa4bc.png" src="../_images/7eb40e74db8f0ac634df88e5b4742ecd3e6bfd0836461226fe437c75e82aa4bc.png" />
+<div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>(&lt;Figure size 640x480 with 3 Axes&gt;,
+ &lt;Axes: title={&#39;center&#39;: &#39;$Total,{\\;}{\\rm PID}{\\;}bin{\\;}0$&#39;}, xlabel=&#39;$E_{\\rm reco} \\; \\left( \\mathrm{GeV} \\right)$&#39;, ylabel=&#39;$\\cos{\\theta}_{\\rm reco}$&#39;&gt;,
+ &lt;matplotlib.collections.QuadMesh at 0x7f66a1f89250&gt;,
+ None)
+</pre></div>
+</div>
+<img alt="../_images/412f8c02c675119226f7d128e5c7c8b92d1341a01afa5a53e7f96e8631f03fe7.png" src="../_images/412f8c02c675119226f7d128e5c7c8b92d1341a01afa5a53e7f96e8631f03fe7.png" />
 </div>
 </div>
 </section>
 <section id="get-data">
 <h2>Get Data<a class="headerlink" href="#get-data" title="Link to this heading">¶</a></h2>
 <p>We can load the real observed data too. This is a Pipeline with no free parameters, as the data is of course fixed.
-NB: When developping a new analysis you will <strong>not</strong> be allowed to look at the data as we do here before the box opening (c.f. <em>blindness</em>).</p>
+NB: When developing a new analysis you will <strong>not</strong> be allowed to look at the data as we do here before the box opening (c.f. <em>blindness</em>).</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># real data</span>
@@ -557,7 +569,7 @@ NB: When developping a new analysis you will <strong>not</strong> be allowed to 
 <tr><th style="text-align: right;">  stage number</th><th style="text-align: center;">    name     </th><th style="text-align: center;"> calc_mode </th><th style="text-align: center;"> apply_mode </th><th style="text-align: center;"> has setup </th><th style="text-align: center;"> has compute </th><th style="text-align: center;"> has apply </th><th style="text-align: center;"> # fixed params </th><th style="text-align: center;"> # free params </th></tr>
 </thead>
 <tbody>
-<tr><td style="text-align: right;">             0</td><td style="text-align: center;">csv_data_hist</td><td style="text-align: center;">  events   </td><td style="text-align: center;">      "dragon_datarelease":
+<tr><td style="text-align: right;">             0</td><td style="text-align: center;">csv_data_hist</td><td style="text-align: center;">  events   </td><td style="text-align: center;">      &quot;dragon_datarelease&quot;:
 8 (reco_energy) x 8 (reco_coszen) x 2 (pid)       </td><td style="text-align: center;">   True    </td><td style="text-align: center;">    False    </td><td style="text-align: center;">   False   </td><td style="text-align: center;">       0        </td><td style="text-align: center;">       0       </td></tr>
 </tbody>
 </table></div></div>
@@ -576,18 +588,30 @@ NB: When developping a new analysis you will <strong>not</strong> be allowed to 
 </div>
 </div>
 <div class="cell_output docutils container">
-<img alt="../_images/d6e8c549c35daa573c69e71b7c6654828fb38e227bc487e7b42c64f599878f22.png" src="../_images/d6e8c549c35daa573c69e71b7c6654828fb38e227bc487e7b42c64f599878f22.png" />
+<img alt="../_images/29d7b6ee42f55fde215a90b82b14f5f6956b0291ab44457963bc77c28f0d0544.png" src="../_images/29d7b6ee42f55fde215a90b82b14f5f6956b0291ab44457963bc77c28f0d0544.png" />
 </div>
 </div>
 </section>
 <section id="fitting">
 <h2>Fitting<a class="headerlink" href="#fitting" title="Link to this heading">¶</a></h2>
-<p>For fitting we need to configure a minimizer, several standard cfgs are available, but you can also define your own.
-For the fit we need to choose a <code class="docutils literal notranslate"><span class="pre">metric</span></code>, and by default, theta23 octants, which are quasi degenerate, are fit seperately, which means two fits are run.</p>
+<p>For fitting we need to configure a minimizer: several standard cfgs are available, but you can also define your own. Here we make use of <a class="reference external" href="https://docs.scipy.org/doc/scipy/reference/optimize.minimize-slsqp.html" rel="noreferer noopener" target="_blank">SciPy’s SLSQP solver</a>.
+In addition, we need to choose a <a class="reference external" href="https://icecube.github.io/pisa/pisa.utils.html#module-pisa.utils.stats" rel="noreferer noopener" target="_blank">“metric”</a> (objective function), here PISA’s <a class="reference external" href="https://icecube.github.io/pisa/pisa.utils.html#pisa.utils.stats.mod_chi2" rel="noreferer noopener" target="_blank">“modified chi-square”</a>. Also, we fit theta23 octants, which are quasi degenerate, separately. PISA automatically minimizes over the separate outcomes to arrive at a global best fit.</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">minimizer_cfg</span> <span class="o">=</span> <span class="n">pisa</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">fileio</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="s1">&#39;settings/minimizer/slsqp_ftol1e-6_eps1e-4_maxiter1000.json&#39;</span><span class="p">)</span>
+<span class="c1"># instantiate the analysis object </span>
 <span class="n">ana</span> <span class="o">=</span> <span class="n">Analysis</span><span class="p">()</span>
+
+<span class="n">method</span> <span class="o">=</span> <span class="s2">&quot;octants&quot;</span>
+<span class="n">method_kwargs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;angle&quot;</span><span class="p">:</span> <span class="s2">&quot;theta23&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;inflection_point&quot;</span><span class="p">:</span> <span class="mi">45</span> <span class="o">*</span> <span class="n">ureg</span><span class="o">.</span><span class="n">deg</span>
+<span class="p">}</span>
+<span class="n">local_fit_kwargs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;method&quot;</span><span class="p">:</span> <span class="s2">&quot;scipy&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;method_kwargs&quot;</span><span class="p">:</span> <span class="n">minimizer_cfg</span><span class="p">,</span>
+    <span class="s2">&quot;local_fit_kwargs&quot;</span><span class="p">:</span> <span class="kc">None</span>
+<span class="p">}</span>
 </pre></div>
 </div>
 </div>
@@ -595,150 +619,36 @@ For the fit we need to choose a <code class="docutils literal notranslate"><span
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%%time</span>
-<span class="n">result</span> <span class="o">=</span> <span class="n">ana</span><span class="o">.</span><span class="n">fit_hypo</span><span class="p">(</span>
-         <span class="n">data</span><span class="p">,</span>
-         <span class="n">model</span><span class="p">,</span>
-         <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;mod_chi2&#39;</span><span class="p">,</span>
-         <span class="n">minimizer_settings</span><span class="o">=</span><span class="n">minimizer_cfg</span><span class="p">,</span>
-         <span class="n">fit_octants_separately</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">ana</span><span class="o">.</span><span class="n">fit_recursively</span><span class="p">(</span>
+    <span class="n">data_dist</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+    <span class="n">hypo_maker</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;mod_chi2&#39;</span><span class="p">,</span>
+    <span class="n">external_priors_penalty</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">,</span>
+    <span class="n">method_kwargs</span><span class="o">=</span><span class="n">method_kwargs</span><span class="p">,</span>
+    <span class="n">local_fit_kwargs</span><span class="o">=</span><span class="n">local_fit_kwargs</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<p>Now we can investigate the <a class="reference external" href="https://icecube.github.io/pisa/pisa.analysis.html#pisa.analysis.analysis.HypoFitResult" rel="noreferer noopener" target="_blank">fit result</a>, such as the parameter values that have been found to minimize the metric, or the value of the latter itself at this point.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">min_metric</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">metric_val</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;minimal metric value: </span><span class="si">{</span><span class="n">min_metric</span><span class="si">:</span><span class="s2">.5g</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
 <div class="cell_output docutils container">
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>[ WARNING] Minimizer slsqp requires artificial boundaries SMALLER than the user-specified boundaries (so that numerical gradients do not exceed the user-specified boundaries).
-                                                                                        (deg)        (deg)       (eV**2)                                                                                                                        
- iter   funcalls    mod_chi2   | nue_numu_rat Barr_uphor_r Barr_nu_nuba delta_index    theta13      theta23      deltam31    aeff_scale   nutau_norm   nu_nc_norm  opt_eff_over opt_eff_late opt_eff_head ice_scatteri ice_absorpti atm_muon_sca
------- ---------- ------------ + ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------
-  0        6       1.75086e+02 |  1.00000e+00  0.00000e+00  0.00000e+00  0.00000e+00  8.50013e+00  4.23000e+01  2.45700e-03  1.00000e+00  1.00000e+00  1.00000e+00  1.00000e+00  2.50000e+01  0.00000e+00  0.00000e+00  0.00000e+00  1.00000e+00
-</pre></div>
-</div>
-<div class="output traceback highlight-ipythontb notranslate"><div class="highlight"><pre><span></span><span class="gt">---------------------------------------------------------------------------</span>
-<span class="ne">KeyboardInterrupt</span><span class="g g-Whitespace">                         </span>Traceback (most recent call last)
-<span class="o">&lt;</span><span class="n">timed</span> <span class="n">exec</span><span class="o">&gt;</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
-
-<span class="nn">~/pisa/pisa/analysis/analysis.py</span> in <span class="ni">fit_hypo</span><span class="nt">(self, data_dist, hypo_maker, metric, minimizer_settings, hypo_param_selections, reset_free, check_octant, fit_octants_separately, check_ordering, other_metrics, blind, pprint, external_priors_penalty)</span>
-<span class="g g-Whitespace">    </span><span class="mi">511</span>                 <span class="n">pprint</span><span class="o">=</span><span class="n">pprint</span><span class="p">,</span>
-<span class="g g-Whitespace">    </span><span class="mi">512</span>                 <span class="n">blind</span><span class="o">=</span><span class="n">blind</span><span class="p">,</span>
-<span class="ne">--&gt; </span><span class="mi">513</span>                 <span class="n">external_priors_penalty</span><span class="o">=</span><span class="n">external_priors_penalty</span>
-<span class="g g-Whitespace">    </span><span class="mi">514</span>             <span class="p">)</span>
-<span class="g g-Whitespace">    </span><span class="mi">515</span> 
-
-<span class="nn">~/pisa/pisa/analysis/analysis.py</span> in <span class="ni">fit_hypo_inner</span><span class="nt">(self, data_dist, hypo_maker, metric, minimizer_settings, other_metrics, pprint, blind, external_priors_penalty)</span>
-<span class="g g-Whitespace">    </span><span class="mi">776</span>             <span class="n">method</span><span class="o">=</span><span class="n">minimizer_settings</span><span class="p">[</span><span class="s1">&#39;method&#39;</span><span class="p">][</span><span class="s1">&#39;value&#39;</span><span class="p">],</span>
-<span class="g g-Whitespace">    </span><span class="mi">777</span>             <span class="n">options</span><span class="o">=</span><span class="n">minimizer_settings</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">][</span><span class="s1">&#39;value&#39;</span><span class="p">],</span>
-<span class="ne">--&gt; </span><span class="mi">778</span>             <span class="n">callback</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_minimizer_callback</span>
-<span class="g g-Whitespace">    </span><span class="mi">779</span>         <span class="p">)</span>
-<span class="g g-Whitespace">    </span><span class="mi">780</span>         <span class="n">end_t</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-
-<span class="nn">~/.local/lib/python3.7/site-packages/scipy/optimize/_minimize.py</span> in <span class="ni">minimize</span><span class="nt">(fun, x0, args, method, jac, hess, hessp, bounds, constraints, tol, callback, options)</span>
-<span class="g g-Whitespace">    </span><span class="mi">616</span>     <span class="k">elif</span> <span class="n">meth</span> <span class="o">==</span> <span class="s1">&#39;slsqp&#39;</span><span class="p">:</span>
-<span class="g g-Whitespace">    </span><span class="mi">617</span>         <span class="k">return</span> <span class="n">_minimize_slsqp</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">jac</span><span class="p">,</span> <span class="n">bounds</span><span class="p">,</span>
-<span class="ne">--&gt; </span><span class="mi">618</span>                                <span class="n">constraints</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">callback</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
-<span class="g g-Whitespace">    </span><span class="mi">619</span>     <span class="k">elif</span> <span class="n">meth</span> <span class="o">==</span> <span class="s1">&#39;trust-constr&#39;</span><span class="p">:</span>
-<span class="g g-Whitespace">    </span><span class="mi">620</span>         <span class="k">return</span> <span class="n">_minimize_trustregion_constr</span><span class="p">(</span><span class="n">fun</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">jac</span><span class="p">,</span> <span class="n">hess</span><span class="p">,</span> <span class="n">hessp</span><span class="p">,</span>
-
-<span class="nn">~/.local/lib/python3.7/site-packages/scipy/optimize/slsqp.py</span> in <span class="ni">_minimize_slsqp</span><span class="nt">(func, x0, args, jac, bounds, constraints, maxiter, ftol, iprint, disp, eps, callback, **unknown_options)</span>
-<span class="g g-Whitespace">    </span><span class="mi">421</span>             <span class="c1"># Compute the derivatives of the objective function</span>
-<span class="g g-Whitespace">    </span><span class="mi">422</span>             <span class="c1"># For some reason SLSQP wants g dimensioned to n+1</span>
-<span class="ne">--&gt; </span><span class="mi">423</span>             <span class="n">g</span> <span class="o">=</span> <span class="n">append</span><span class="p">(</span><span class="n">fprime</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">)</span>
-<span class="g g-Whitespace">    </span><span class="mi">424</span> 
-<span class="g g-Whitespace">    </span><span class="mi">425</span>             <span class="c1"># Compute the normals of the constraints</span>
-
-<span class="nn">~/.local/lib/python3.7/site-packages/scipy/optimize/optimize.py</span> in <span class="ni">function_wrapper</span><span class="nt">(*wrapper_args)</span>
-<span class="g g-Whitespace">    </span><span class="mi">325</span>     <span class="k">def</span><span class="w"> </span><span class="nf">function_wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">wrapper_args</span><span class="p">):</span>
-<span class="g g-Whitespace">    </span><span class="mi">326</span>         <span class="n">ncalls</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="ne">--&gt; </span><span class="mi">327</span>         <span class="k">return</span> <span class="n">function</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">wrapper_args</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span>
-<span class="g g-Whitespace">    </span><span class="mi">328</span> 
-<span class="g g-Whitespace">    </span><span class="mi">329</span>     <span class="k">return</span> <span class="n">ncalls</span><span class="p">,</span> <span class="n">function_wrapper</span>
-
-<span class="nn">~/.local/lib/python3.7/site-packages/scipy/optimize/slsqp.py</span> in <span class="ni">approx_jacobian</span><span class="nt">(x, func, epsilon, *args)</span>
-<span class="g g-Whitespace">     </span><span class="mi">61</span>     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x0</span><span class="p">)):</span>
-<span class="g g-Whitespace">     </span><span class="mi">62</span>         <span class="n">dx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">epsilon</span>
-<span class="ne">---&gt; </span><span class="mi">63</span>         <span class="n">jac</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">((</span><span class="n">x0</span><span class="o">+</span><span class="n">dx</span><span class="p">,)</span><span class="o">+</span><span class="n">args</span><span class="p">))</span> <span class="o">-</span> <span class="n">f0</span><span class="p">)</span><span class="o">/</span><span class="n">epsilon</span>
-<span class="g g-Whitespace">     </span><span class="mi">64</span>         <span class="n">dx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="g g-Whitespace">     </span><span class="mi">65</span> 
-
-<span class="nn">~/.local/lib/python3.7/site-packages/scipy/optimize/optimize.py</span> in <span class="ni">function_wrapper</span><span class="nt">(*wrapper_args)</span>
-<span class="g g-Whitespace">    </span><span class="mi">325</span>     <span class="k">def</span><span class="w"> </span><span class="nf">function_wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">wrapper_args</span><span class="p">):</span>
-<span class="g g-Whitespace">    </span><span class="mi">326</span>         <span class="n">ncalls</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-<span class="ne">--&gt; </span><span class="mi">327</span>         <span class="k">return</span> <span class="n">function</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">wrapper_args</span> <span class="o">+</span> <span class="n">args</span><span class="p">))</span>
-<span class="g g-Whitespace">    </span><span class="mi">328</span> 
-<span class="g g-Whitespace">    </span><span class="mi">329</span>     <span class="k">return</span> <span class="n">ncalls</span><span class="p">,</span> <span class="n">function_wrapper</span>
-
-<span class="nn">~/pisa/pisa/analysis/analysis.py</span> in <span class="ni">_minimizer_callable</span><span class="nt">(self, scaled_param_vals, hypo_maker, data_dist, metric, counter, fit_history, pprint, blind, external_priors_penalty)</span>
-<span class="g g-Whitespace">   </span><span class="mi">1113</span>                 <span class="n">metric_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;empty_bins&#39;</span><span class="p">:</span><span class="n">hypo_maker</span><span class="o">.</span><span class="n">empty_bin_indices</span><span class="p">}</span>
-<span class="g g-Whitespace">   </span><span class="mi">1114</span>             <span class="k">else</span><span class="p">:</span>
-<span class="ne">-&gt; </span><span class="mi">1115</span>                 <span class="n">hypo_asimov_dist</span> <span class="o">=</span> <span class="n">hypo_maker</span><span class="o">.</span><span class="n">get_outputs</span><span class="p">(</span><span class="n">return_sum</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="g g-Whitespace">   </span><span class="mi">1116</span>                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hypo_asimov_dist</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">):</span>
-<span class="g g-Whitespace">   </span><span class="mi">1117</span>                     <span class="n">hypo_asimov_dist</span> <span class="o">=</span> <span class="n">hypo_asimov_dist</span><span class="p">[</span><span class="s1">&#39;weights&#39;</span><span class="p">]</span>
-
-<span class="nn">~/pisa/pisa/core/distribution_maker.py</span> in <span class="ni">get_outputs</span><span class="nt">(self, return_sum, sum_map_name, sum_map_tex_name, **kwargs)</span>
-<span class="g g-Whitespace">    </span><span class="mi">250</span> 
-<span class="g g-Whitespace">    </span><span class="mi">251</span>         <span class="n">outputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">pipeline</span><span class="o">.</span><span class="n">get_outputs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">pipeline</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span> <span class="c1"># pylint: disable=redefined-outer-name</span>
-<span class="ne">--&gt; </span><span class="mi">252</span> 
-<span class="g g-Whitespace">    </span><span class="mi">253</span>         <span class="k">if</span> <span class="n">return_sum</span><span class="p">:</span>
-<span class="g g-Whitespace">    </span><span class="mi">254</span> 
-
-<span class="nn">~/pisa/pisa/core/distribution_maker.py</span> in <span class="ni">&lt;listcomp&gt;</span><span class="nt">(.0)</span>
-<span class="g g-Whitespace">    </span><span class="mi">250</span> 
-<span class="g g-Whitespace">    </span><span class="mi">251</span>         <span class="n">outputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">pipeline</span><span class="o">.</span><span class="n">get_outputs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="k">for</span> <span class="n">pipeline</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">]</span> <span class="c1"># pylint: disable=redefined-outer-name</span>
-<span class="ne">--&gt; </span><span class="mi">252</span> 
-<span class="g g-Whitespace">    </span><span class="mi">253</span>         <span class="k">if</span> <span class="n">return_sum</span><span class="p">:</span>
-<span class="g g-Whitespace">    </span><span class="mi">254</span> 
-
-<span class="nn">~/pisa/pisa/core/pipeline.py</span> in <span class="ni">get_outputs</span><span class="nt">(self, output_binning, output_key)</span>
-<span class="g g-Whitespace">    </span><span class="mi">305</span> 
-<span class="g g-Whitespace">    </span><span class="mi">306</span>         <span class="bp">self</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
-<span class="ne">--&gt; </span><span class="mi">307</span> 
-<span class="g g-Whitespace">    </span><span class="mi">308</span>         <span class="k">if</span> <span class="n">output_binning</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<span class="g g-Whitespace">    </span><span class="mi">309</span>             <span class="n">output_binning</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_binning</span>
-
-<span class="nn">~/pisa/pisa/core/pipeline.py</span> in <span class="ni">run</span><span class="nt">(self)</span>
-<span class="g g-Whitespace">    </span><span class="mi">329</span>         <span class="k">for</span> <span class="n">stage</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stages</span><span class="p">:</span>
-<span class="g g-Whitespace">    </span><span class="mi">330</span>             <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Working on stage </span><span class="si">{</span><span class="n">stage</span><span class="o">.</span><span class="n">stage_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">stage</span><span class="o">.</span><span class="n">service_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="ne">--&gt; </span><span class="mi">331</span>             <span class="n">stage</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
-<span class="g g-Whitespace">    </span><span class="mi">332</span> 
-<span class="g g-Whitespace">    </span><span class="mi">333</span>     <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-
-<span class="nn">~/pisa/pisa/core/stage.py</span> in <span class="ni">run</span><span class="nt">(self)</span>
-<span class="g g-Whitespace">    </span><span class="mi">368</span> 
-<span class="g g-Whitespace">    </span><span class="mi">369</span>     <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="ne">--&gt; </span><span class="mi">370</span>         <span class="bp">self</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
-<span class="g g-Whitespace">    </span><span class="mi">371</span>         <span class="bp">self</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
-<span class="g g-Whitespace">    </span><span class="mi">372</span>         <span class="k">return</span> <span class="kc">None</span>
-
-<span class="nn">~/pisa/pisa/core/stage.py</span> in <span class="ni">compute</span><span class="nt">(self)</span>
-<span class="g g-Whitespace">    </span><span class="mi">338</span>         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-<span class="g g-Whitespace">    </span><span class="mi">339</span>             <span class="n">start_t</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
-<span class="ne">--&gt; </span><span class="mi">340</span>             <span class="bp">self</span><span class="o">.</span><span class="n">compute_function</span><span class="p">()</span>
-<span class="g g-Whitespace">    </span><span class="mi">341</span>             <span class="n">end_t</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
-<span class="g g-Whitespace">    </span><span class="mi">342</span>             <span class="bp">self</span><span class="o">.</span><span class="n">calc_times</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">end_t</span> <span class="o">-</span> <span class="n">start_t</span><span class="p">)</span>
-
-<span class="nn">~/pisa/pisa/stages/osc/prob3.py</span> in <span class="ni">compute_function</span><span class="nt">(self)</span>
-<span class="g g-Whitespace">    </span><span class="mi">316</span>                             <span class="n">container</span><span class="p">[</span><span class="s1">&#39;densities&#39;</span><span class="p">],</span>
-<span class="g g-Whitespace">    </span><span class="mi">317</span>                             <span class="n">container</span><span class="p">[</span><span class="s1">&#39;distances&#39;</span><span class="p">],</span>
-<span class="ne">--&gt; </span><span class="mi">318</span>                             <span class="n">out</span><span class="o">=</span><span class="n">container</span><span class="p">[</span><span class="s1">&#39;probability&#39;</span><span class="p">],</span>
-<span class="g g-Whitespace">    </span><span class="mi">319</span>                            <span class="p">)</span>
-<span class="g g-Whitespace">    </span><span class="mi">320</span>             <span class="n">container</span><span class="o">.</span><span class="n">mark_changed</span><span class="p">(</span><span class="s1">&#39;probability&#39;</span><span class="p">)</span>
-
-<span class="nn">~/pisa/pisa/stages/osc/prob3.py</span> in <span class="ni">calc_probs</span><span class="nt">(self, nubar, e_array, rho_array, len_array, out)</span>
-<span class="g g-Whitespace">    </span><span class="mi">231</span>                         <span class="n">rho_array</span><span class="p">,</span>
-<span class="g g-Whitespace">    </span><span class="mi">232</span>                         <span class="n">len_array</span><span class="p">,</span>
-<span class="ne">--&gt; </span><span class="mi">233</span>                         <span class="n">out</span><span class="o">=</span><span class="n">out</span>
-<span class="g g-Whitespace">    </span><span class="mi">234</span>                        <span class="p">)</span>
-<span class="g g-Whitespace">    </span><span class="mi">235</span> 
-
-<span class="ne">KeyboardInterrupt</span>: 
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>minimal metric value: 115.81
 </pre></div>
 </div>
 </div>
 </div>
-<p>Here we can view the bestfit parameters - the result of our fit.
-We have run two fits (separately for each theta23 octant), and the best result is stored in <code class="docutils literal notranslate"><span class="pre">results[0]</span></code> (both fits are also available under <code class="docutils literal notranslate"><span class="pre">results[1]</span></code>)</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">bestfit_params</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;params&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">free</span>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">bestfit_params</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">free</span>
 <span class="n">bestfit_params</span>
 </pre></div>
 </div>
@@ -746,38 +656,38 @@ We have run two fits (separately for each theta23 octant), and the best result i
 <div class="cell_output docutils container">
 <div class="output text_html"><table>
 <thead>
-<tr><th style="text-align: right;">               name</th><th style="text-align: center;">  value   </th><th style="text-align: center;"> nominal_value </th><th style="text-align: center;">    range     </th><th style="text-align: center;">  prior  </th><th style="text-align: center;">      units       </th><th style="text-align: center;"> is_fixed </th></tr>
+<tr><th style="text-align: right;">               name</th><th style="text-align: center;">  value   </th><th style="text-align: center;"> nominal_value </th><th style="text-align: center;">                range                 </th><th style="text-align: center;">  prior  </th><th style="text-align: center;">      units       </th><th style="text-align: center;"> is_fixed </th></tr>
 </thead>
 <tbody>
-<tr><td style="text-align: right;">     nue_numu_ratio</td><td style="text-align: center;"> 1.03304  </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.5, 1.5]  </td><td style="text-align: center;">+/- 0.05 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">   Barr_uphor_ratio</td><td style="text-align: center;">-0.313404 </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-3.0, 3.0]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">Barr_nu_nubar_ratio</td><td style="text-align: center;">-0.0200293</td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-3.0, 3.0]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">        delta_index</td><td style="text-align: center;">-0.0106011</td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-0.5, 0.5]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">            theta13</td><td style="text-align: center;"> 8.50992  </td><td style="text-align: center;">      8.5      </td><td style="text-align: center;"> [7.85, 9.1]  </td><td style="text-align: center;">+/- 0.205</td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">            theta23</td><td style="text-align: center;"> 46.2525  </td><td style="text-align: center;">     42.3      </td><td style="text-align: center;">   [31, 59]   </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">           deltam31</td><td style="text-align: center;">0.00242605</td><td style="text-align: center;">   0.002457    </td><td style="text-align: center;">[0.001, 0.007]</td><td style="text-align: center;"> uniform </td><td style="text-align: center;">electron_volt ** 2</td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">         aeff_scale</td><td style="text-align: center;"> 0.934868 </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.0, 3.0]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">         nutau_norm</td><td style="text-align: center;"> 0.610718 </td><td style="text-align: center;">       1       </td><td style="text-align: center;"> [-1.0, 8.5]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">         nu_nc_norm</td><td style="text-align: center;"> 1.26342  </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.5, 1.5]  </td><td style="text-align: center;"> +/- 0.2 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">    opt_eff_overall</td><td style="text-align: center;"> 1.05348  </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.8, 1.2]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">    opt_eff_lateral</td><td style="text-align: center;"> 22.0081  </td><td style="text-align: center;">      25       </td><td style="text-align: center;">   [5, 50]    </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">     opt_eff_headon</td><td style="text-align: center;"> -1.32275 </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-5.0, 2.0]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">     ice_scattering</td><td style="text-align: center;"> -2.87791 </td><td style="text-align: center;">       0       </td><td style="text-align: center;">  [-15, 15]   </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">     ice_absorption</td><td style="text-align: center;"> 1.76103  </td><td style="text-align: center;">       0       </td><td style="text-align: center;">  [-15, 15]   </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
-<tr><td style="text-align: right;">     atm_muon_scale</td><td style="text-align: center;"> 0.931489 </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.0, 5.0]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     nue_numu_ratio</td><td style="text-align: center;"> 1.03301  </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.5), np.float64(1.5)]  </td><td style="text-align: center;">+/- 0.05 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">   Barr_uphor_ratio</td><td style="text-align: center;">-0.315637 </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [np.float64(-3.0), np.float64(3.0)]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">Barr_nu_nubar_ratio</td><td style="text-align: center;">-0.0208958</td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [np.float64(-3.0), np.float64(3.0)]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">        delta_index</td><td style="text-align: center;">-0.0106002</td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [np.float64(-0.5), np.float64(0.5)]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">            theta13</td><td style="text-align: center;"> 8.51035  </td><td style="text-align: center;">      8.5      </td><td style="text-align: center;"> [np.float64(7.85), np.float64(9.1)]  </td><td style="text-align: center;">+/- 0.205</td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">            theta23</td><td style="text-align: center;">  46.251  </td><td style="text-align: center;">     47.7      </td><td style="text-align: center;">     [np.int64(31), np.int64(59)]     </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">           deltam31</td><td style="text-align: center;">0.00242612</td><td style="text-align: center;">   0.002457    </td><td style="text-align: center;">[np.float64(0.001), np.float64(0.007)]</td><td style="text-align: center;"> uniform </td><td style="text-align: center;">electron_volt ** 2</td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">         aeff_scale</td><td style="text-align: center;"> 0.934906 </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.0), np.float64(3.0)]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">         nutau_norm</td><td style="text-align: center;"> 0.610797 </td><td style="text-align: center;">       1       </td><td style="text-align: center;"> [np.float64(-1.0), np.float64(8.5)]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">         nu_nc_norm</td><td style="text-align: center;"> 1.26362  </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.5), np.float64(1.5)]  </td><td style="text-align: center;"> +/- 0.2 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">    opt_eff_overall</td><td style="text-align: center;"> 1.05343  </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.8), np.float64(1.2)]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">    opt_eff_lateral</td><td style="text-align: center;"> 22.0036  </td><td style="text-align: center;">      25       </td><td style="text-align: center;">     [np.int64(5), np.int64(50)]      </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     opt_eff_headon</td><td style="text-align: center;"> -1.32362 </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [np.float64(-5.0), np.float64(2.0)]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     ice_scattering</td><td style="text-align: center;"> -2.87944 </td><td style="text-align: center;">       0       </td><td style="text-align: center;">    [np.int64(-15), np.int64(15)]     </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     ice_absorption</td><td style="text-align: center;"> 1.75368  </td><td style="text-align: center;">       0       </td><td style="text-align: center;">    [np.int64(-15), np.int64(15)]     </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     atm_muon_scale</td><td style="text-align: center;"> 0.931613 </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [np.float64(0.0), np.float64(5.0)]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
 </tbody>
 </table></div></div>
 </div>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># update the model with the bestfit (make a copy here, because we don&#39;t want our bestfit params to be affected (NB: stuff is passed by reference in python))</span>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># update the model with the best fit</span>
 <span class="n">model</span><span class="o">.</span><span class="n">update_params</span><span class="p">(</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">bestfit_params</span><span class="p">))</span>
 </pre></div>
 </div>
 </div>
 </div>
-<p>Let’s see how good that fit looks like. We here construct signed mod_chi2 maps by hand.
-You can see that after the fit, it improved considerably, and the distribution of chi2 values is now more uniform - not much features can be seen anymore.</p>
+<p>Let’s see how good that fit looks. We here construct signed mod_chi2 maps by hand.
+You can see that after the fit, it improved considerably, and the distribution of chi2 values is now more uniform - only few features remain visible.</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">7</span><span class="p">))</span>
@@ -798,7 +708,7 @@ You can see that after the fit, it improved considerably, and the distribution o
 </div>
 </div>
 <div class="cell_output docutils container">
-<img alt="../_images/ff56f63a5627a0b4e776aabf2910d4b2526d67d853ae9b2de0c7d91fe6556fef.png" src="../_images/ff56f63a5627a0b4e776aabf2910d4b2526d67d853ae9b2de0c7d91fe6556fef.png" />
+<img alt="../_images/773015b5fea3b41b5f5c21b0d968211d18d2535df23d3e734ed37d71a71b9e48.png" src="../_images/773015b5fea3b41b5f5c21b0d968211d18d2535df23d3e734ed37d71a71b9e48.png" />
 </div>
 </div>
 <p>When checking the chi2 value from the fitted model, you maybe see that it is around 113, while in the minimizer loop we saw it converged to 116. It is important to keep in mind that in the fit we had extended the metric with prior penalty terms. When we add those back we get the identical number as reported in the fit.</p>
@@ -810,8 +720,8 @@ You can see that after the fit, it improved considerably, and the distribution o
 </div>
 </div>
 <div class="cell_output docutils container">
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>175.08610154304426
-113.03553972952989
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>175.08610766919114
+113.03289312869633
 </pre></div>
 </div>
 </div>
@@ -821,21 +731,24 @@ You can see that after the fit, it improved considerably, and the distribution o
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">metric</span> <span class="ow">in</span> <span class="n">pisa</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">ALL_METRICS</span><span class="p">:</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> = </span><span class="si">%.3f</span><span class="s1">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">metric</span><span class="p">,</span><span class="n">data</span><span class="o">.</span><span class="n">metric_total</span><span class="p">(</span><span class="n">bestfit</span><span class="p">,</span> <span class="n">metric</span><span class="p">)))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">metric</span><span class="si">}</span><span class="s1"> = </span><span class="si">{</span><span class="n">data</span><span class="o">.</span><span class="n">metric_total</span><span class="p">(</span><span class="n">bestfit</span><span class="p">,</span><span class="w"> </span><span class="n">metric</span><span class="p">)</span><span class="si">:</span><span class="s1">.3f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
     <span class="k">except</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> failed&#39;</span><span class="o">%</span><span class="k">metric</span>)
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">metric</span><span class="si">}</span><span class="s1"> failed&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
 <div class="cell_output docutils container">
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>llh = -64.972
-conv_llh = -57.326
-barlow_llh = -1147.290
-mcllh_mean = -541.333
-mcllh_eff = -541.486
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>llh = -64.971
+conv_llh = -57.324
+barlow_llh failed
+mcllh_mean = -541.331
+mcllh_eff = -541.484
 generalized_poisson_llh failed
-chi2 = 128.476
-mod_chi2 = 113.036
+chi2 = 128.473
+mod_chi2 = 113.033
+correct_chi2 = 847.217
+weighted_chi2 failed
+signed_sqrt_mod_chi2 = -9.176
 </pre></div>
 </div>
 </div>
@@ -844,24 +757,24 @@ mod_chi2 = 113.036
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="o">.</span><span class="n">update_params</span><span class="p">(</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">bestfit_params</span><span class="p">))</span>
-<span class="n">data</span><span class="o">.</span><span class="n">metric_total</span><span class="p">(</span><span class="n">bestfit</span><span class="p">,</span> <span class="s1">&#39;mod_chi2&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">model</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">priors_penalty</span><span class="p">(</span><span class="s1">&#39;mod_chi2&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">metric_total</span><span class="p">(</span><span class="n">bestfit</span><span class="p">,</span> <span class="s1">&#39;mod_chi2&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">model</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">priors_penalty</span><span class="p">(</span><span class="s1">&#39;mod_chi2&#39;</span><span class="p">))</span>
 </pre></div>
 </div>
 </div>
 <div class="cell_output docutils container">
-<div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>115.8086745310561
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>115.80889047543769
 </pre></div>
 </div>
 </div>
 </div>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;metric_val&#39;</span><span class="p">]</span>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">metric_val</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
 <div class="cell_output docutils container">
-<div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>115.8086745310561
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>115.80889047543769
 </pre></div>
 </div>
 </div>
@@ -869,31 +782,50 @@ mod_chi2 = 113.036
 </section>
 <section id="storing-the-results-to-a-file">
 <h2>Storing the results to a file<a class="headerlink" href="#storing-the-results-to-a-file" title="Link to this heading">¶</a></h2>
-<p>Since the fit took a while, it might be useful to store the results to a file. (NB: in this example we use a temp file, but in real life you would of course just use a real pathname instead!)</p>
+<p>Since the fit took a while, it might be useful to store the results to a file. (NB: in this example we use a temporary file, but in practice you would just use a real path instead.)</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
 <div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
 <span class="n">temp</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="s1">&#39;.json&#39;</span><span class="p">)</span>
-<span class="n">pisa</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">fileio</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">temp</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<span class="n">pisa</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">fileio</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">temp</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">warn</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<p>To reload, we can read the file and re-instantiate the <a class="reference external" href="https://icecube.github.io/pisa/pisa.core.html#pisa.core.param.ParamSet" rel="noreferer noopener" target="_blank">set of fit parameters</a>.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">result_reload</span> <span class="o">=</span> <span class="n">pisa</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">fileio</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">temp</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<span class="n">temp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span> <span class="c1"># remove the temporary file again</span>
+<span class="n">bestfit_params</span> <span class="o">=</span> <span class="n">pisa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">ParamSet</span><span class="p">(</span><span class="n">result_reload</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">free</span>
+<span class="n">bestfit_params</span>
 </pre></div>
 </div>
 </div>
 <div class="cell_output docutils container">
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>[ WARNING] Overwriting file at &#39;/tmp/tmp04yxkl60.json&#39;
-</pre></div>
-</div>
-</div>
-</div>
-<p>To reload, we can read the file. But to get PISA objects back, they need to instantiated</p>
-<div class="cell docutils container">
-<div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">result_reload</span> <span class="o">=</span> <span class="n">pisa</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">fileio</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">temp</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-<span class="n">bestfit_params</span> <span class="o">=</span> <span class="n">pisa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">ParamSet</span><span class="p">(</span><span class="n">result_reload</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;params&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">free</span>
-<span class="n">bestfit_params</span>
-<span class="n">temp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</pre></div>
-</div>
-</div>
+<div class="output text_html"><table>
+<thead>
+<tr><th style="text-align: right;">               name</th><th style="text-align: center;">  value   </th><th style="text-align: center;"> nominal_value </th><th style="text-align: center;">    range     </th><th style="text-align: center;">  prior  </th><th style="text-align: center;">      units       </th><th style="text-align: center;"> is_fixed </th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align: right;">     nue_numu_ratio</td><td style="text-align: center;"> 1.03301  </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.5, 1.5]  </td><td style="text-align: center;">+/- 0.05 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">   Barr_uphor_ratio</td><td style="text-align: center;">-0.315637 </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-3.0, 3.0]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">Barr_nu_nubar_ratio</td><td style="text-align: center;">-0.0208958</td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-3.0, 3.0]  </td><td style="text-align: center;"> +/- 1.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">        delta_index</td><td style="text-align: center;">-0.0106002</td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-0.5, 0.5]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">            theta13</td><td style="text-align: center;"> 8.51035  </td><td style="text-align: center;">      8.5      </td><td style="text-align: center;"> [7.85, 9.1]  </td><td style="text-align: center;">+/- 0.205</td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">            theta23</td><td style="text-align: center;">  46.251  </td><td style="text-align: center;">     47.7      </td><td style="text-align: center;">   [31, 59]   </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">      degree      </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">           deltam31</td><td style="text-align: center;">0.00242612</td><td style="text-align: center;">   0.002457    </td><td style="text-align: center;">[0.001, 0.007]</td><td style="text-align: center;"> uniform </td><td style="text-align: center;">electron_volt ** 2</td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">         aeff_scale</td><td style="text-align: center;"> 0.934906 </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.0, 3.0]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">         nutau_norm</td><td style="text-align: center;"> 0.610797 </td><td style="text-align: center;">       1       </td><td style="text-align: center;"> [-1.0, 8.5]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">         nu_nc_norm</td><td style="text-align: center;"> 1.26362  </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.5, 1.5]  </td><td style="text-align: center;"> +/- 0.2 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">    opt_eff_overall</td><td style="text-align: center;"> 1.05343  </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.8, 1.2]  </td><td style="text-align: center;"> +/- 0.1 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">    opt_eff_lateral</td><td style="text-align: center;"> 22.0036  </td><td style="text-align: center;">      25       </td><td style="text-align: center;">   [5, 50]    </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     opt_eff_headon</td><td style="text-align: center;"> -1.32362 </td><td style="text-align: center;">       0       </td><td style="text-align: center;"> [-5.0, 2.0]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     ice_scattering</td><td style="text-align: center;"> -2.87944 </td><td style="text-align: center;">       0       </td><td style="text-align: center;">  [-15, 15]   </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     ice_absorption</td><td style="text-align: center;"> 1.75368  </td><td style="text-align: center;">       0       </td><td style="text-align: center;">  [-15, 15]   </td><td style="text-align: center;">+/- 10.0 </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+<tr><td style="text-align: right;">     atm_muon_scale</td><td style="text-align: center;"> 0.931613 </td><td style="text-align: center;">       1       </td><td style="text-align: center;">  [0.0, 5.0]  </td><td style="text-align: center;"> uniform </td><td style="text-align: center;">  dimensionless   </td><td style="text-align: center;">  False   </td></tr>
+</tbody>
+</table></div></div>
 </div>
 </section>
 <section id="profiling">
@@ -901,43 +833,60 @@ mod_chi2 = 113.036
 <p>To understand what parts of the model were executed how many times, and how long it took, the profiling  can help:</p>
 <div class="cell docutils container">
 <div class="cell_input docutils container">
-<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="o">.</span><span class="n">pipelines</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">report_profile</span><span class="p">()</span>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">model</span><span class="o">.</span><span class="n">report_profile</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
 <div class="cell_output docutils container">
-<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>data csv_loader
-- setup:  Total time 0.00000 s, n calls: 0, time/call: 0.00000 s
-- calc:   Total time 0.00000 s, n calls: 0, time/call: 0.00000 s
-- apply:  Total time 1.34596 s, n calls: 817, time/call: 0.00165 s
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Pipeline: neutrinos
+- setup:        Total time (s): 4.662, n calls: 1
+- run:          Total time (s): 410.261, n calls: 782, time/call (s): mean 0.525, max. 24.954, min. 0.040
+- get_outputs:  Total time (s): 413.123, n calls: 782, time/call (s): mean 0.528, max. 24.962, min. 0.043
+Individual services:
+data csv_loader
+- setup:    Total time (s): 4.531, n calls: 1
+- compute:  Total time (s): +0.000, n calls: 1
+- apply:    Total time (s): 0.905, n calls: 782, time/call (s): mean 0.001, max. 0.007, min. +0.000
 flux honda_ip
-- setup:  Total time 0.00000 s, n calls: 0, time/call: 0.00000 s
-- calc:   Total time 25.08353 s, n calls: 1, time/call: 25.08353 s
-- apply:  Total time 0.00072 s, n calls: 817, time/call: 0.00000 s
+- setup:    Total time (s): 0.025, n calls: 1
+- compute:  Total time (s): 23.341, n calls: 1
+- apply:    Total time (s): +0.000, n calls: 782, time/call (s): mean +0.000, max. +0.000, min. +0.000
 flux barr_simple
-- setup:  Total time 0.00000 s, n calls: 0, time/call: 0.00000 s
-- calc:   Total time 118.13966 s, n calls: 330, time/call: 0.35800 s
-- apply:  Total time 0.00091 s, n calls: 817, time/call: 0.00000 s
+- setup:    Total time (s): +0.000, n calls: 1
+- compute:  Total time (s): 82.179, n calls: 331, time/call (s): mean 0.248, max. 0.516, min. 0.187
+- apply:    Total time (s): +0.000, n calls: 782, time/call (s): mean +0.000, max. +0.000, min. +0.000
 osc prob3
-- setup:  Total time 0.00000 s, n calls: 0, time/call: 0.00000 s
-- calc:   Total time 339.71126 s, n calls: 290, time/call: 1.17142 s
-- apply:  Total time 73.15262 s, n calls: 817, time/call: 0.08954 s
+- setup:    Total time (s): 0.076, n calls: 1
+- compute:  Total time (s): 258.130, n calls: 291, time/call (s): mean 0.887, max. 1.811, min. 0.755
+- apply:    Total time (s): 13.937, n calls: 782, time/call (s): mean 0.018, max. 0.461, min. 0.005
 aeff aeff
-- setup:  Total time 0.00000 s, n calls: 0, time/call: 0.00000 s
-- calc:   Total time 0.00056 s, n calls: 290, time/call: 0.00000 s
-- apply:  Total time 1.62155 s, n calls: 817, time/call: 0.00198 s
+- setup:    Total time (s): +0.000, n calls: 1
+- compute:  Total time (s): +0.000, n calls: 291, time/call (s): mean +0.000, max. +0.000, min. +0.000
+- apply:    Total time (s): 1.699, n calls: 782, time/call (s): mean 0.002, max. 0.014, min. 0.002
 utils hist
-- setup:  Total time 0.00000 s, n calls: 0, time/call: 0.00000 s
-- calc:   Total time 0.00000 s, n calls: 0, time/call: 0.00000 s
-- apply:  Total time 73.78663 s, n calls: 817, time/call: 0.09031 s
+- setup:    Total time (s): 0.024, n calls: 1
+- compute:  Total time (s): +0.000, n calls: 1
+- apply:    Total time (s): 26.674, n calls: 782, time/call (s): mean 0.034, max. 0.087, min. 0.030
 discr_sys hypersurfaces
-- setup:  Total time 0.00000 s, n calls: 0, time/call: 0.00000 s
-- calc:   Total time 0.27885 s, n calls: 372, time/call: 0.00075 s
-- apply:  Total time 0.44868 s, n calls: 817, time/call: 0.00055 s
+- setup:    Total time (s): +0.000, n calls: 1
+- compute:  Total time (s): 0.234, n calls: 373, time/call (s): mean +0.000, max. 0.003, min. +0.000
+- apply:    Total time (s): 0.393, n calls: 782, time/call (s): mean +0.000, max. 0.001, min. +0.000
+Pipeline: muons
+- setup:        Total time (s): 0.002, n calls: 1
+- run:          Total time (s): 0.280, n calls: 781, time/call (s): mean +0.000, max. 0.002, min. +0.000
+- get_outputs:  Total time (s): 0.564, n calls: 781, time/call (s): mean +0.000, max. 0.005, min. +0.000
+Individual services:
+data csv_icc_hist
+- setup:    Total time (s): 0.002, n calls: 1
+- compute:  Total time (s): +0.000, n calls: 171, time/call (s): mean +0.000, max. +0.000, min. +0.000
+- apply:    Total time (s): 0.066, n calls: 781, time/call (s): mean +0.000, max. +0.000, min. +0.000
 </pre></div>
 </div>
 </div>
 </div>
+<p>Here we can see that computing the outputs of the neutrino pipeline on average took approximately half a second.</p>
+<p>Apart from the onetime calculation of the atmospheric neutrino fluxes by the <a class="reference external" href="https://icecube.github.io/pisa/pisa.stages.flux.html#pisa.stages.flux.honda_ip.honda_ip" rel="noreferer noopener" target="_blank">“honda_ip”</a> service and the loading of the MC events by the <a class="reference external" href="https://icecube.github.io/pisa/pisa.stages.data.html#pisa.stages.data.csv_loader.csv_loader" rel="noreferer noopener" target="_blank">“csv_loader”</a> service, the most time-consuming, recurring, operations occur in the <a class="reference external" href="https://icecube.github.io/pisa/pisa.stages.osc.html#pisa.stages.osc.prob3.prob3" rel="noreferer noopener" target="_blank">“prob3”</a> neutrino oscillation service and the <a class="reference external" href="https://icecube.github.io/pisa/pisa.stages.flux.html#pisa.stages.flux.barr_simple.barr_simple" rel="noreferer noopener" target="_blank">“barr_simple”</a> neutrino flux service.</p>
+<p>In contrast, computing the outputs of the muon pipeline took at most $5\times 10^{-3}$ seconds.</p>
 </section>
 </section>
 
@@ -946,12 +895,12 @@ discr_sys hypersurfaces
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="pisa_modes.html">
+          <a class="next-page" href="../stubs/howto_perform_fit_redirect.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">PISA stage modes</div>
+                <div class="title">Carrying out a custom fitting routine</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -1023,7 +972,7 @@ discr_sys hypersurfaces
       
     </aside>
   </div>
-</div><script src="../_static/documentation_options.js?v=a19192f0"></script>
+</div><script src="../_static/documentation_options.js?v=856fc904"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/scripts/furo.js?v=46bd48cc"></script>

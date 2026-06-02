@@ -7,7 +7,7 @@
         <link rel="prefetch" href="_static/pisa4_logo_transparent.png" as="image">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>pisa.core package - PISA 0+untagged.1.gdb24838 documentation</title>
+        <title>pisa.core package - PISA 0+untagged.1.g1eb8892 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
@@ -164,7 +164,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">PISA 0+untagged.1.gdb24838 documentation</div></a>
+      <a href="index.html"><div class="brand">PISA 0+untagged.1.g1eb8892 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -188,7 +188,7 @@
     <img class="sidebar-logo" src="_static/pisa4_logo_transparent.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">PISA 0+untagged.1.gdb24838 documentation</span>
+  <span class="sidebar-brand-text">PISA 0+untagged.1.g1eb8892 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -202,6 +202,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="tutorials.html">Tutorials</a><input aria-label="Toggle navigation of Tutorials" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="stubs/glossary_stub.html">PISA Terminology</a></li>
 <li class="toctree-l2"><a class="reference internal" href="notebooks/IceCube_3y_oscillations_example.html">PISA Example Using Public IceCube Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stubs/howto_perform_fit_redirect.html">Carrying out a custom fitting routine</a></li>
 <li class="toctree-l2"><a class="reference internal" href="notebooks/pisa_modes.html">PISA stage modes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stubs/howto_pipeline_config_redirect.html">Pipeline configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stubs/units_uncertainties_stub.html">Units and Uncertainties</a></li>
@@ -3844,7 +3845,7 @@ equality of this map with another. See <cite>__eq__</cite> method.</p></li>
 <dt class="sig sig-object py" id="pisa.core.map.Map.barlow_llh">
 <span class="sig-name descname"><span class="pre">barlow_llh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.barlow_llh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.barlow_llh" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate the total barlow log-likelihood value between this map and
-the map described by <cite>expected_values</cite>. See metric() for details.</p>
+the map described by <cite>expected_values</cite>. See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -3862,7 +3863,7 @@ the map described by <cite>expected_values</cite>. See metric() for details.</p>
 <dt class="sig sig-object py" id="pisa.core.map.Map.chi2">
 <span class="sig-name descname"><span class="pre">chi2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.chi2"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.chi2" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate the total chi-squared value between this map and the map
-described by <cite>expected_values</cite>. See metric() for details.</p>
+described by <cite>expected_values</cite>. See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -3900,14 +3901,14 @@ matter.</p>
 <dt class="sig sig-object py" id="pisa.core.map.Map.conv_llh">
 <span class="sig-name descname"><span class="pre">conv_llh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.conv_llh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.conv_llh" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate the total convoluted log-likelihood value between this map
-and the map described by <cite>expected_values</cite>. See metric() for details.</p>
+and the map described by <cite>expected_values</cite>. See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="pisa.core.map.Map.correct_chi2">
 <span class="sig-name descname"><span class="pre">correct_chi2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.correct_chi2"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.correct_chi2" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate the total correct chi2 value between this map and the map
-described by <cite>expected_values</cite>. See metric() for details.</p>
+described by <cite>expected_values</cite>. See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -4066,7 +4067,7 @@ indexing directly into to the parent map (or to a similar map).</p>
 <dt class="sig sig-object py" id="pisa.core.map.Map.llh">
 <span class="sig-name descname"><span class="pre">llh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.llh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.llh" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate the total log-likelihood value between this map and the
-map described by <cite>expected_values</cite>. See metric() for details.</p>
+map described by <cite>expected_values</cite>. See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -4101,14 +4102,14 @@ map described by <cite>expected_values</cite>. See metric() for details.</p>
 <dt class="sig sig-object py" id="pisa.core.map.Map.mcllh_eff">
 <span class="sig-name descname"><span class="pre">mcllh_eff</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.mcllh_eff"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.mcllh_eff" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate the total LEff log-likelihood value between this map and
-the map described by <cite>expected_values</cite>. See metric() for details.</p>
+the map described by <cite>expected_values</cite>. See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="pisa.core.map.Map.mcllh_mean">
 <span class="sig-name descname"><span class="pre">mcllh_mean</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.mcllh_mean"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.mcllh_mean" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate the total LMean log-likelihood value between this map and
-the map described by <cite>expected_values</cite>. See metric() for details.</p>
+the map described by <cite>expected_values</cite>. See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -4163,7 +4164,7 @@ values for each bin.</p>
 <dt class="sig sig-object py" id="pisa.core.map.Map.mod_chi2">
 <span class="sig-name descname"><span class="pre">mod_chi2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.mod_chi2"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.mod_chi2" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate the total modified chi2 value between this map and the map
-described by <cite>expected_values</cite>. See metric() for details.</p>
+described by <cite>expected_values</cite>. See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -4291,6 +4292,13 @@ Default: <cite>None</cite>.</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="pisa.core.map.Map.poisson_llh">
+<span class="sig-name descname"><span class="pre">poisson_llh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.poisson_llh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.poisson_llh" title="Link to this definition">¶</a></dt>
+<dd><p>Calculate the total Poissonian log-likelihood value between this map
+and the map described by <cite>expected_values</cite>. See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="pisa.core.map.Map.project">
 <span class="sig-name descname"><span class="pre">project</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">axis</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keepdims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.project"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.project" title="Link to this definition">¶</a></dt>
 <dd><p>Project all dimensions onto a single <cite>axis</cite>.</p>
@@ -4413,8 +4421,8 @@ If None is passed, any errors present are removed, making
 <dt class="sig sig-object py" id="pisa.core.map.Map.signed_sqrt_mod_chi2">
 <span class="sig-name descname"><span class="pre">signed_sqrt_mod_chi2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expected_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/core/map.html#Map.signed_sqrt_mod_chi2"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.core.map.Map.signed_sqrt_mod_chi2" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate the binwise (signed) square-root of the modified chi2 value
-between this map and the map described by <cite>expected_values</cite>. See
-metric() for details.</p>
+between this map and the map described by <cite>expected_values</cite>.
+See <a class="reference internal" href="#pisa.core.map.Map.metric" title="pisa.core.map.Map.metric"><code class="xref py py-meth docutils literal notranslate"><span class="pre">metric()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -7298,6 +7306,7 @@ numpy.histogramdd.</p>
 <li><a class="reference internal" href="#pisa.core.map.Map.normalize_values"><code class="docutils literal notranslate"><span class="pre">Map.normalize_values</span></code></a></li>
 <li><a class="reference internal" href="#pisa.core.map.Map.num_entries"><code class="docutils literal notranslate"><span class="pre">Map.num_entries</span></code></a></li>
 <li><a class="reference internal" href="#pisa.core.map.Map.plot"><code class="docutils literal notranslate"><span class="pre">Map.plot()</span></code></a></li>
+<li><a class="reference internal" href="#pisa.core.map.Map.poisson_llh"><code class="docutils literal notranslate"><span class="pre">Map.poisson_llh()</span></code></a></li>
 <li><a class="reference internal" href="#pisa.core.map.Map.project"><code class="docutils literal notranslate"><span class="pre">Map.project()</span></code></a></li>
 <li><a class="reference internal" href="#pisa.core.map.Map.rebin"><code class="docutils literal notranslate"><span class="pre">Map.rebin()</span></code></a></li>
 <li><a class="reference internal" href="#pisa.core.map.Map.reorder_dimensions"><code class="docutils literal notranslate"><span class="pre">Map.reorder_dimensions()</span></code></a></li>
@@ -7566,7 +7575,7 @@ numpy.histogramdd.</p>
       
     </aside>
   </div>
-</div><script src="_static/documentation_options.js?v=a19192f0"></script>
+</div><script src="_static/documentation_options.js?v=856fc904"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/scripts/furo.js?v=46bd48cc"></script>

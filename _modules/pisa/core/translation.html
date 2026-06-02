@@ -6,7 +6,7 @@
         <link rel="prefetch" href="../../../_static/pisa4_logo_transparent.png" as="image">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>pisa.core.translation - PISA 0+untagged.1.gdb24838 documentation</title>
+        <title>pisa.core.translation - PISA 0+untagged.1.g1eb8892 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
@@ -163,7 +163,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="../../../index.html"><div class="brand">PISA 0+untagged.1.gdb24838 documentation</div></a>
+      <a href="../../../index.html"><div class="brand">PISA 0+untagged.1.g1eb8892 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -187,7 +187,7 @@
     <img class="sidebar-logo" src="../../../_static/pisa4_logo_transparent.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">PISA 0+untagged.1.gdb24838 documentation</span>
+  <span class="sidebar-brand-text">PISA 0+untagged.1.g1eb8892 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -201,6 +201,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../tutorials.html">Tutorials</a><input aria-label="Toggle navigation of Tutorials" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../stubs/glossary_stub.html">PISA Terminology</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../notebooks/IceCube_3y_oscillations_example.html">PISA Example Using Public IceCube Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/howto_perform_fit_redirect.html">Carrying out a custom fitting routine</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../notebooks/pisa_modes.html">PISA stage modes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../stubs/howto_pipeline_config_redirect.html">Pipeline configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../stubs/units_uncertainties_stub.html">Units and Uncertainties</a></li>
@@ -298,8 +299,6 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">numba</span><span class="w"> </span><span class="kn">import</span> <span class="n">guvectorize</span>
-
-<span class="kn">import</span><span class="w"> </span><span class="nn">numba</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">numba</span><span class="w"> </span><span class="kn">import</span> <span class="n">njit</span><span class="p">,</span> <span class="n">prange</span>
 <span class="c1"># When binnings are fully regular, we can use this for super speed</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">fast_histogram</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">fh</span>
@@ -307,13 +306,12 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">pisa</span><span class="w"> </span><span class="kn">import</span> <span class="n">FTYPE</span><span class="p">,</span> <span class="n">TARGET</span><span class="p">,</span> <span class="n">PISA_NUM_THREADS</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pisa</span><span class="w"> </span><span class="kn">import</span> <span class="n">FTYPE</span><span class="p">,</span> <span class="n">TARGET</span><span class="p">,</span> <span class="n">PISA_NUM_THREADS</span><span class="p">,</span> <span class="n">PISA_HIST_THREADING</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pisa.core.binning</span><span class="w"> </span><span class="kn">import</span> <span class="n">OneDimBinning</span><span class="p">,</span> <span class="n">MultiDimBinning</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pisa.utils.comparisons</span><span class="w"> </span><span class="kn">import</span> <span class="n">recursiveEquality</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pisa.utils.log</span><span class="w"> </span><span class="kn">import</span> <span class="n">logging</span><span class="p">,</span> <span class="n">set_verbosity</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pisa.utils.numba_tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">myjit</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pisa.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">vectorizer</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pisa.utils.profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">line_profile</span><span class="p">,</span> <span class="n">profile</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pisa.utils.profiler</span><span class="w"> </span><span class="kn">import</span> <span class="n">profile</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
     <span class="s1">&#39;resample&#39;</span><span class="p">,</span>
@@ -420,10 +418,24 @@
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_threaded_fh_histogramdd</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">bin_range</span><span class="p">):</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">TARGET</span> <span class="o">==</span> <span class="s2">&quot;parallel&quot;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">fh</span><span class="o">.</span><span class="n">histogramdd</span><span class="p">(</span><span class="n">sample</span><span class="o">=</span><span class="n">sample</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="n">bins</span><span class="p">,</span> <span class="nb">range</span><span class="o">=</span><span class="n">bin_range</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Conditionally apply histogram threading based on PISA_HIST_THREADING</span>
+<span class="sd">    setting.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Determine number of splits</span>
+    <span class="n">splits</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">PISA_HIST_THREADING</span> <span class="o">==</span> <span class="s1">&#39;auto&#39;</span><span class="p">:</span>
+        <span class="c1"># Auto mode: use threading only for parallel TARGET</span>
+        <span class="k">if</span> <span class="n">TARGET</span> <span class="o">==</span> <span class="s1">&#39;parallel&#39;</span><span class="p">:</span>
+            <span class="n">splits</span> <span class="o">=</span> <span class="n">PISA_NUM_THREADS</span>
+    <span class="k">elif</span> <span class="n">PISA_HIST_THREADING</span> <span class="o">==</span> <span class="s1">&#39;off&#39;</span><span class="p">:</span>
+        <span class="k">pass</span> <span class="c1"># splits stays None (disabled)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Explicit thread count (takes precedence)</span>
+        <span class="n">splits</span> <span class="o">=</span> <span class="n">PISA_HIST_THREADING</span> <span class="c1"># int &gt; 0</span>
 
-    <span class="n">splits</span> <span class="o">=</span> <span class="n">PISA_NUM_THREADS</span>
+    <span class="k">if</span> <span class="n">splits</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">splits</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">fh</span><span class="o">.</span><span class="n">histogramdd</span><span class="p">(</span><span class="n">sample</span><span class="o">=</span><span class="n">sample</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="n">bins</span><span class="p">,</span>
+                              <span class="nb">range</span><span class="o">=</span><span class="n">bin_range</span><span class="p">)</span>
 
     <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="n">splits</span><span class="p">)</span> <span class="k">as</span> <span class="n">pool</span><span class="p">:</span>
         <span class="n">chunk</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">sample</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">//</span> <span class="n">splits</span>
@@ -1269,7 +1281,7 @@
       
     </aside>
   </div>
-</div><script src="../../../_static/documentation_options.js?v=a19192f0"></script>
+</div><script src="../../../_static/documentation_options.js?v=856fc904"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>

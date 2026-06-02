@@ -7,7 +7,7 @@
         <link rel="prefetch" href="_static/pisa4_logo_transparent.png" as="image">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>pisa.stages.cont_sys package - PISA 0+untagged.1.gdb24838 documentation</title>
+        <title>pisa.stages.cont_sys package - PISA 0+untagged.1.g1eb8892 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
@@ -164,7 +164,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">PISA 0+untagged.1.gdb24838 documentation</div></a>
+      <a href="index.html"><div class="brand">PISA 0+untagged.1.g1eb8892 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -188,7 +188,7 @@
     <img class="sidebar-logo" src="_static/pisa4_logo_transparent.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">PISA 0+untagged.1.gdb24838 documentation</span>
+  <span class="sidebar-brand-text">PISA 0+untagged.1.g1eb8892 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -202,6 +202,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="tutorials.html">Tutorials</a><input aria-label="Toggle navigation of Tutorials" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="stubs/glossary_stub.html">PISA Terminology</a></li>
 <li class="toctree-l2"><a class="reference internal" href="notebooks/IceCube_3y_oscillations_example.html">PISA Example Using Public IceCube Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stubs/howto_perform_fit_redirect.html">Carrying out a custom fitting routine</a></li>
 <li class="toctree-l2"><a class="reference internal" href="notebooks/pisa_modes.html">PISA stage modes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stubs/howto_pipeline_config_redirect.html">Pipeline configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stubs/units_uncertainties_stub.html">Units and Uncertainties</a></li>
@@ -308,7 +309,7 @@ The method is based on this paper: <a class="reference external" href="https://a
 
 <dl class="py class">
 <dt class="sig sig-object py" id="pisa.stages.cont_sys.snowstorm_hist.snowstorm_hist">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pisa.stages.cont_sys.snowstorm_hist.</span></span><span class="sig-name descname"><span class="pre">snowstorm_hist</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">systematics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_dists</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_dists_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">std_kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/stages/cont_sys/snowstorm_hist.html#snowstorm_hist"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.stages.cont_sys.snowstorm_hist.snowstorm_hist" title="Link to this definition">¶</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">pisa.stages.cont_sys.snowstorm_hist.</span></span><span class="sig-name descname"><span class="pre">snowstorm_hist</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">systematics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_dists</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_dists_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_params</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tolerances</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">std_kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pisa/stages/cont_sys/snowstorm_hist.html#snowstorm_hist"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pisa.stages.cont_sys.snowstorm_hist.snowstorm_hist" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="pisa.core.html#pisa.core.stage.Stage" title="pisa.core.stage.Stage"><code class="xref py py-class docutils literal notranslate"><span class="pre">Stage</span></code></a></p>
 <p>Service to apply detector systematics through splitting and histogramming
 of snowstorm simulation.</p>
@@ -328,8 +329,17 @@ utils.hist stage.</p>
 Has to be either ‘gauss’ or ‘uniform’.</p></li>
 <li><p><strong>simulation_dists_params</strong> (<em>list</em><em> of </em><em>tuples</em><em> of </em><em>floats</em>) – Parameters of the simulation distributions. (mean, std) for ‘gauss’ and
 (min, max) for ‘uniform’.</p></li>
-<li><p><strong>additional_params</strong> (<em>list</em><em> of </em><em>str</em>) – Parameters that are no detector systematics but if changed require a
+<li><p><strong>additional_params</strong> (<em>list</em><em> of </em><em>str</em><em> (</em><em>default None</em><em>)</em>) – Parameters that are no detector systematics but if changed require a
 re-calculation of the gradients (e.g. osc params).</p></li>
+<li><p><strong>tolerances</strong> (<em>list</em><em> of </em><em>float</em><em> (</em><em>default None</em><em>)</em>) – Numerical tolerances for <cite>additional_params</cite>, to be given in the same order.
+If none are given (default), all gradients will be updated each time at least
+one parameter value changes (most accurate but slowest option). If tolerances
+<em>are</em> given, though, and <em>all</em> parameters move away from their initial values
+by <em>less</em> than the specified tolerances over the course of a single fit, gradients
+will <em>never</em> be re-calculated. Only once at least one parameter’s overall delta
+exceeds its corresponding tolerance the gradients will be updated (and a new
+reference point set). Subsequent modfications of the parameter vector will
+then be compared to this updated referenced point.</p></li>
 <li><p><strong>params</strong> (<a class="reference internal" href="pisa.core.html#pisa.core.param.ParamSet" title="pisa.core.param.ParamSet"><em>ParamSet</em></a>) – Note that the params required to be in <cite>params</cite> are those listed in
 <cite>systematics</cite> plus those listed in <cite>additional_params</cite>.</p></li>
 </ul>
@@ -461,7 +471,7 @@ re-calculation of the gradients (e.g. osc params).</p></li>
       
     </aside>
   </div>
-</div><script src="_static/documentation_options.js?v=a19192f0"></script>
+</div><script src="_static/documentation_options.js?v=856fc904"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/scripts/furo.js?v=46bd48cc"></script>

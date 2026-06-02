@@ -7,7 +7,7 @@
         <link rel="prefetch" href="../_static/pisa4_logo_transparent.png" as="image">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>Global constants - PISA 0+untagged.1.gdb24838 documentation</title>
+        <title>Global constants - PISA 0+untagged.1.g1eb8892 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../_static/mystnb.11b39860a7a0cbfd473a3ad8a317855267ff0bd372690045ca344a6b62be495e.css" />
@@ -164,7 +164,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="../index.html"><div class="brand">PISA 0+untagged.1.gdb24838 documentation</div></a>
+      <a href="../index.html"><div class="brand">PISA 0+untagged.1.g1eb8892 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -188,7 +188,7 @@
     <img class="sidebar-logo" src="../_static/pisa4_logo_transparent.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">PISA 0+untagged.1.gdb24838 documentation</span>
+  <span class="sidebar-brand-text">PISA 0+untagged.1.g1eb8892 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -202,6 +202,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials.html">Tutorials</a><input aria-label="Toggle navigation of Tutorials" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="glossary_stub.html">PISA Terminology</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../notebooks/IceCube_3y_oscillations_example.html">PISA Example Using Public IceCube Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="howto_perform_fit_redirect.html">Carrying out a custom fitting routine</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../notebooks/pisa_modes.html">PISA stage modes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="howto_pipeline_config_redirect.html">Pipeline configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="units_uncertainties_stub.html">Units and Uncertainties</a></li>
@@ -327,42 +328,47 @@ They can be imported via <code class="docutils literal notranslate"><span class=
 <td><p><code class="docutils literal notranslate"><span class="pre">1</span></code> (<code class="docutils literal notranslate"><span class="pre">numba.config.NUMBA_NUM_THREADS</span></code>) for <code class="docutils literal notranslate"><span class="pre">TARGET='cpu'</span></code> (<code class="docutils literal notranslate"><span class="pre">'parallel'</span></code>)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">PISA_NUM_THREADS</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">FTYPE</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">PISA_HIST_THREADING</span></code></p></td>
+<td><p>Multi-threading mode for PISA (fast) histogramming</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">'off'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PISA_HIST_THREADING</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">FTYPE</span></code></p></td>
 <td><p>Global floating-point data type</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">np.float64</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">PISA_FTYPE</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CTYPE</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CTYPE</span></code></p></td>
 <td><p>Global complex-valued floating-point data type</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">np.complex128</span></code> (<code class="docutils literal notranslate"><span class="pre">np.complex64</span></code>) for <code class="docutils literal notranslate"><span class="pre">FTYPE=np.float64(32)</span></code></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ITYPE</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ITYPE</span></code></p></td>
 <td><p>Global integer data type</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">np.int64</span></code> (<code class="docutils literal notranslate"><span class="pre">np.int32</span></code>) for <code class="docutils literal notranslate"><span class="pre">FTYPE=np.float64(32)</span></code></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">HASH_SIGFIGS</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">HASH_SIGFIGS</span></code></p></td>
 <td><p>Number of significant digits used for hashing numbers, depends on <code class="docutils literal notranslate"><span class="pre">FTYPE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">12(5)</span></code> for <code class="docutils literal notranslate"><span class="pre">FTYPE=np.float64(32)</span></code></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">EPSILON</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">EPSILON</span></code></p></td>
 <td><p>Best numerical precision, derived from <code class="docutils literal notranslate"><span class="pre">HASH_SIGFIGS</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">10**(-HASH_SIGFIGS)</span></code></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">C_FTYPE</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">C_FTYPE</span></code></p></td>
 <td><p>C floating-point type corresponding to <code class="docutils literal notranslate"><span class="pre">FTYPE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">'double'</span></code> (<code class="docutils literal notranslate"><span class="pre">'float'</span></code>) for <code class="docutils literal notranslate"><span class="pre">FTYPE=np.float64(32)</span></code></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">C_PRECISION_DEF</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">C_PRECISION_DEF</span></code></p></td>
 <td><p>C precision of floating-point calculations, derived from <code class="docutils literal notranslate"><span class="pre">FTYPE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">'DOUBLE_PRECISION'</span></code> (<code class="docutils literal notranslate"><span class="pre">'SINGLE_PRECISION'</span></code>) for <code class="docutils literal notranslate"><span class="pre">FTYPE=np.float64(32)</span></code></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CACHE_DIR</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CACHE_DIR</span></code></p></td>
 <td><p>Root directory for storing PISA cache files</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">'~/.cache/pisa'</span></code></p></td>
 <td><p>1.<code class="docutils literal notranslate"><span class="pre">PISA_CACHE_DIR</span></code>, 2.<code class="docutils literal notranslate"><span class="pre">XDG_CACHE_HOME/pisa</span></code></p></td>
@@ -374,13 +380,13 @@ They can be imported via <code class="docutils literal notranslate"><span class=
 <section id="usage">
 <h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">¶</a></h2>
 <p>The table below depicts which services make use of a select set of global constants.
-Note that the table entries are derived both from the module files themselves (where the services are defined) and from any <code class="docutils literal notranslate"><span class="pre">pisa.utils</span></code> objects they make use of (in particular, reliance on “PISA-tailored” jit in <code class="docutils literal notranslate"><span class="pre">numba_tools</span></code>).
+Note that the table entries are derived both from the module files themselves (where the services are defined) and from any <code class="docutils literal notranslate"><span class="pre">pisa.utils</span></code> objects they make use of (e.g., reliance on “PISA-tailored” jit in <code class="docutils literal notranslate"><span class="pre">numba_tools</span></code>).
 Constants which are implicitly used by all services via <code class="docutils literal notranslate"><span class="pre">pisa.core</span></code> objects (e.g. <code class="docutils literal notranslate"><span class="pre">HASH_SIGFIGS</span></code>, <code class="docutils literal notranslate"><span class="pre">CACHE_DIR</span></code>) are not shown.
 Also note that where a service implements <code class="docutils literal notranslate"><span class="pre">FTYPE</span></code> and relies on C extension code, the simultaneous implementation of <code class="docutils literal notranslate"><span class="pre">C_FTYPE</span></code> and <code class="docutils literal notranslate"><span class="pre">C_PRECISION_DEF</span></code> is implied.</p>
 <p><strong>Legend</strong></p>
 <ul class="simple">
-<li><p>:heavy_check_mark:: implements</p></li>
-<li><p>:heavy_minus_sign:: does not implement but does not fail (i.e., ignores)</p></li>
+<li><p>✓: implements</p></li>
+<li><p>✗: does not implement but does not fail (i.e., ignores)</p></li>
 </ul>
 <div class="table-wrapper colwidths-auto docutils container">
 <table class="docutils align-default">
@@ -389,238 +395,291 @@ Also note that where a service implements <code class="docutils literal notransl
 <th class="head text-center"><p><code class="docutils literal notranslate"><span class="pre">TARGET</span></code></p></th>
 <th class="head text-center"><p><code class="docutils literal notranslate"><span class="pre">PISA_NUM_THREADS</span></code></p></th>
 <th class="head text-center"><p><code class="docutils literal notranslate"><span class="pre">FTYPE</span></code></p></th>
+<th class="head text-center"><p><code class="docutils literal notranslate"><span class="pre">PISA_HIST_THREADING</span></code></p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">absorption.earth_absorption</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
 <tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">aeff.aeff</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
 <tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">aeff.weight</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
 <tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">aeff.weight_hnl</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
 <tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">background.atm_muons</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.csv_data_hist</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">cont_sys.snowstorm_hist</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.csv_icc_hist</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.csv_data_hist</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.csv_loader</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.csv_icc_hist</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.freedom_hdf5_loader</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.csv_loader</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.grid</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.freedom_hdf5_loader</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.licloader_weighter</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.grid</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.meows_loader</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.licloader_weighter</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.simple_data_loader</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.meows_loader</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.simple_signal</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.simple_data_loader</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.sqlite_loader</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.simple_signal</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.toy_event_generator</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.sqlite_loader</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">discr_sys.hypersurfaces</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">data.toy_event_generator</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">discr_sys.ultrasurfaces</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">discr_sys.hypersurfaces</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.airs</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">discr_sys.ultrasurfaces</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.astrophysical</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.airs</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.barr_simple</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.astrophysical</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.daemon_flux</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.barr_simple</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.hillasg</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.daemon_flux</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.honda_ip</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.hillasg</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.mceq_barr</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.honda_ip</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.mceq_barr_red</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.mceq_barr</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">likelihood.generalized_llh_params</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">flux.mceq_barr_red</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.decoherence</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">likelihood.generalized_llh_params</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.globes</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.decoherence</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.nusquids</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.globes</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.prob3</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.nusquids</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.two_nu_osc</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.prob3</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">reco.resolutions</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">osc.two_nu_osc</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">reco.simple_param</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">reco.resolutions</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.add_indices</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">reco.simple_param</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.adhoc_sys</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.add_indices</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.bootstrap</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.adhoc_sys</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.fix_error</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.bootstrap</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.hist</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.fix_error</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.kde</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.hist</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.kfold</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.kde</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.resample</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.kfold</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.set_variance</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.resample</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">xsec.dis_sys</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">utils.set_variance</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">xsec.genie_sys</span></code></p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
-<td class="text-center"><p>:heavy_minus_sign:</p></td>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">xsec.dis_sys</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
-<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">xsec.nutau_xsec</span></code></p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
-<td class="text-center"><p>:heavy_check_mark:</p></td>
+<tr class="row-odd"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">xsec.genie_sys</span></code></p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+<td class="text-center"><p>✗</p></td>
+</tr>
+<tr class="row-even"><td class="text-center"><p><code class="docutils literal notranslate"><span class="pre">xsec.nutau_xsec</span></code></p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✓</p></td>
+<td class="text-center"><p>✗</p></td>
 </tr>
 </tbody>
 </table>
@@ -704,7 +763,7 @@ Also note that where a service implements <code class="docutils literal notransl
       
     </aside>
   </div>
-</div><script src="../_static/documentation_options.js?v=a19192f0"></script>
+</div><script src="../_static/documentation_options.js?v=856fc904"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/scripts/furo.js?v=46bd48cc"></script>
